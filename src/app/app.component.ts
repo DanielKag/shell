@@ -8,6 +8,7 @@ import { Component } from '@angular/core';
           <a href="#/pvwa">PVWA</a>
           <a href="#/pta">PTA</a>
           <a href="#/msp">MSP</a>
+          <a href="#/daniel-child">ChildApp</a>
       </section>
       <hr>    
     `,  

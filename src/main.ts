@@ -19,7 +19,7 @@ const loadApp = name => () => {
 }
 
 const loadAppFromNodeModules = name => () => {  
-  return System.import(`../node_modules/${name}/${name}.app.js`);
+  return System.import(`../node_modules/${name}-app/${name}.app.js`);
 }
 
 if (environment.production) {
@@ -29,8 +29,9 @@ if (environment.production) {
 
 // All the apps
 declareChildApplication("pvwa-app", loadApp('pvwa'), isAppActive('pvwa'));
-declareChildApplication("msp-app", loadAppFromNodeModules('msp'), isAppActive('msp'));
+declareChildApplication("msp-app", loadApp('msp'), isAppActive('msp'));
 declareChildApplication("pta-app", loadApp('pta'), isAppActive('pta'));
+declareChildApplication("daniel-child-app", loadAppFromNodeModules('daniel-child'), isAppActive('daniel-child'));
 start();
 
 
