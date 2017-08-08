@@ -3,9 +3,9 @@
 //import 'reflect-metadata';
 //import {platformBrowserDynamic} from '@angular/platform-browser-dynamic';
 
-let platformBrowserDynamic = window.platformBrowserDynamic;
+let platformBrowserDynamic = window.angular.platformBrowserDynamic;
 let singleSpaAngular2 = window.singleSpaAngular2;
-import mainModule from './main-module.js';
+import mainModule from './main-module';
 
 const ng2Lifecycles = singleSpaAngular2({
 	domElementGetter,

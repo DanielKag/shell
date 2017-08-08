@@ -1,7 +1,7 @@
 declare var window;
-let NgModule = window.angular.NgModule;
-let BrowserModule = window.BrowserModule;
-import {MSPApp} from './msp.component.js';
+let NgModule = window.angular.core.NgModule;
+let BrowserModule = window.angular.BrowserModule;
+import {MSPApp} from './msp.component';
 
 
 @NgModule({

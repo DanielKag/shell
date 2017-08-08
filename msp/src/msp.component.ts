@@ -1,5 +1,5 @@
 declare var window;
-let Component = window.angular.Component;
+let Component = window.angular.core.Component;
 
 @Component({
 	selector: 'msp-app',
