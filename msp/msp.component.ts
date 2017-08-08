@@ -1,4 +1,5 @@
-import {Component, NgZone, Inject} from '@angular/core';
+declare var window;
+let Component = window.angular.Component;
 
 @Component({
 	selector: 'msp-app',
@@ -11,11 +12,5 @@ import {Component, NgZone, Inject} from '@angular/core';
 export class MSPApp {
 	
 	constructor() {		
-	}
-
-	ngOnInit() {	
-	}
-
-	ngOnDestroy() {		
 	}
 }

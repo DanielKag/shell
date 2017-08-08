@@ -1,9 +1,11 @@
 
 //import 'zone.js';
 //import 'reflect-metadata';
-import {platformBrowserDynamic} from '@angular/platform-browser-dynamic';
-import singleSpaAngular2 from 'single-spa-angular2';
-import mainModule from './main-module.ts';
+//import {platformBrowserDynamic} from '@angular/platform-browser-dynamic';
+
+let platformBrowserDynamic = window.platformBrowserDynamic;
+let singleSpaAngular2 = window.singleSpaAngular2;
+import mainModule from './main-module.js';
 
 const ng2Lifecycles = singleSpaAngular2({
 	domElementGetter,
@@ -25,7 +27,7 @@ export const unmount = [
 ];
 
 function domElementGetter() {
-	return document.getElementById('cyb-root');
+	return document.getElementById('main-app');
 }
 
 
