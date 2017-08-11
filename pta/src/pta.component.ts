@@ -1,5 +1,7 @@
-declare var window;
-let Component = window.angular.core.Component;
+//declare var window;
+//let Component = window.angular.core.Component;
+
+import {Component} from '@angular/core';
 
 @Component({
 	selector: 'pta-app',

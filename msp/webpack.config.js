@@ -1,7 +1,7 @@
 const path = require('path');
 
 module.exports = {
-    entry: path.join(__dirname, 'src', 'app.js'),
+    entry: path.join(__dirname, 'src', 'app.ts'),
     output: {
         path:  path.join(__dirname, 'dist'),
         filename: "bundle.js",
@@ -15,5 +15,9 @@ module.exports = {
             { test: /\.css$/, loader: "style!css" },
             { test: /\.tsx?$/, loader: 'ts-loader' }
         ]
-    }
+    },
+    externals: [
+        'single-spa-angular2',
+        /^@angular\//
+        ]
 };

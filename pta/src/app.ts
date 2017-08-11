@@ -1,17 +1,21 @@
 
 //import 'zone.js';
 //import 'reflect-metadata';
-//import {platformBrowserDynamic} from '@angular/platform-browser-dynamic';
+import {platformBrowserDynamic} from  '@angular/platform-browser-dynamic';
 
-let platformBrowserDynamic = window.angular.platformBrowserDynamic;
-let singleSpaAngular2 = window.singleSpaAngular2;
+
+//let platformBrowserDynamic = window.angular.platformBrowserDynamic;
+//let singleSpaAngular2 = window.singleSpaAngular2;
+import singleSpaAngular2  from 'single-spa-angular2';
+
+
 import mainModule from './main-module';
 
 const ng2Lifecycles = singleSpaAngular2({
 	domElementGetter,
 	mainModule,
 	angularPlatform: platformBrowserDynamic(),
-	template: `<pvwa-app />`,
+	template: `<pta-app />`,
 })
 
 export const bootstrap = [

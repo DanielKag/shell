@@ -1,64 +1,36 @@
-declare var window;
-let NgModule = window.angular.core.NgModule;
-let BrowserModule = window.angular.BrowserModule;
-let RouterModule = window.angular.router.RouterModule;
-let APP_BASE_HREF = window.angular.common.APP_BASE_HREF;
+//declare var window;
+//let NgModule = window.angular.core.NgModule;
+//let BrowserModule = window.angular.BrowserModule;
+
+import {NgModule} from '@angular/core';
+import {BrowserModule} from '@angular/platform-browser';
 import {PVWAApp} from './pvwa.component';
-import {SafesComponent} from './safes.component';
-import {AccountsComponent} from './accounts.component';
+import {NgReduxModule, NgRedux} from '@angular-redux/store';
 
 
+export interface IPVWAState { counter: number };
 
-export function MyAwesomeMatcher ( url: any ): any {
-
-debugger;
-  if (url.length === 0) {
-    return null;
+const pvwaReducer = (state, action) => {  
+  switch (action.type) {
+    case 'INC':      
+      return {counter: state.counter + 1}    
+    case 'DEC':
+      return {counter: state.counter - 1}
+    default:
+      return state;
   }
-
-  //const reg = /^(awesome-path)$/;
-  const reg = /^(.*safes)$/;
-  const param = url[ 0 ].toString();
- 
-  if (param.match( reg )) {
-    // myValue: "awesome-path"
-    return ({ consumed: url, posParams: { myValue: url[ 0 ] } });
-  }
-
-  return null;
-
 }
 
-
-const appRoutes: any = [
-  {path: 'pvwa', children: [
-    {path: 'safes', component: SafesComponent},
-    { path: 'accounts', component: AccountsComponent } 
-  ]},
-  {path: '**', component: AccountsComponent }
-]
-  
-  // /*
-  // { matcher: MyAwesomeMatcher, component: SafesComponent },
-  // //{ path: '#/pvwa/safes',    component: SafesComponent },
-  //   { path: '**', component: AccountsComponent } 
-  // /*{ path: '',
-  // children: [    
-  // ]    
-  // } */ 
-
+const initialState = {counter: 1}
 
 
 @NgModule({
-  imports: [
-    RouterModule.forRoot(
-      appRoutes,
-      { enableTracing: false,  useHash: true } // <-- debugging purposes only
-    ),
-    BrowserModule],
-  declarations: [PVWAApp, SafesComponent, AccountsComponent],
-  //providers: [{provide: APP_BASE_HREF, useValue : '/#/pvwa' }],
+  imports: [NgReduxModule, BrowserModule],
+  declarations: [PVWAApp],
   bootstrap: [PVWAApp]
 })
 export default class MainModule {
+  constructor(ngRedux: NgRedux<IPVWAState>) {
+    ngRedux.configureStore(pvwaReducer, initialState);
+  }
 }

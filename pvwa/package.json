@@ -1,0 +1,30 @@
+{
+  "name": "msp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "webpack.config.js",
+  "dependencies": {
+    "ts-loader": "^2.3.2",
+    "typescript": "^2.4.2"
+  },
+  "devDependencies": {
+    "@angular-redux/store": "^6.5.7",
+    "@angular/common": "^4.1.2",
+    "@angular/compiler": "^4.1.2",
+    "@angular/core": "^4.1.2",
+    "@angular/platform-browser": "^4.1.2",
+    "@angular/platform-browser-dynamic": "^4.1.2",
+    "core-js": "^2.5.0",
+    "redux": "^3.7.2",
+    "rxjs": "^5.4.2",
+    "single-spa-angular2": "^1.0.2",
+    "ts-node": "^3.3.0",
+    "zone.js": "^0.8.16"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

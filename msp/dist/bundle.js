@@ -1,4 +1,4 @@
-define(function() { return /******/ (function(modules) { // webpackBootstrap
+define(["@angular/core","@angular/platform-browser-dynamic","single-spa-angular2","@angular/platform-browser"], function(__WEBPACK_EXTERNAL_MODULE_0__, __WEBPACK_EXTERNAL_MODULE_2__, __WEBPACK_EXTERNAL_MODULE_3__, __WEBPACK_EXTERNAL_MODULE_5__) { return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
 /******/
@@ -60,95 +60,121 @@ define(function() { return /******/ (function(modules) { // webpackBootstrap
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 0);
+/******/ 	return __webpack_require__(__webpack_require__.s = 1);
 /******/ })
 /************************************************************************/
 /******/ ([
 /* 0 */
+/***/ (function(module, exports) {
+
+module.exports = __WEBPACK_EXTERNAL_MODULE_0__;
+
+/***/ }),
+/* 1 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__main_module__ = __webpack_require__(1);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__main_module___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__main_module__);
-
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic__ = __webpack_require__(2);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_single_spa_angular2__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__main_module__ = __webpack_require__(4);
 //import 'zone.js';
 //import 'reflect-metadata';
-//import {platformBrowserDynamic} from '@angular/platform-browser-dynamic';
 
-let platformBrowserDynamic = window.angular.platformBrowserDynamic;
-let singleSpaAngular2 = window.singleSpaAngular2;
+//let platformBrowserDynamic = window.angular.platformBrowserDynamic;
+//let singleSpaAngular2 = window.singleSpaAngular2;
 
 
-const ng2Lifecycles = singleSpaAngular2({
-	domElementGetter,
-	mainModule: __WEBPACK_IMPORTED_MODULE_0__main_module___default.a,
-	angularPlatform: platformBrowserDynamic(),
-	template: `<msp-app />`,
-})
-
+const ng2Lifecycles = __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2___default()({
+    domElementGetter,
+    mainModule: __WEBPACK_IMPORTED_MODULE_2__main_module__["a" /* default */],
+    angularPlatform: Object(__WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic__["platformBrowserDynamic"])(),
+    template: `<msp-app />`,
+});
 const bootstrap = [
-	ng2Lifecycles.bootstrap,
+    ng2Lifecycles.bootstrap,
 ];
 /* harmony export (immutable) */ __webpack_exports__["bootstrap"] = bootstrap;
 
-
 const mount = [
-	ng2Lifecycles.mount,
+    ng2Lifecycles.mount,
 ];
 /* harmony export (immutable) */ __webpack_exports__["mount"] = mount;
 
-
 const unmount = [
-	ng2Lifecycles.unmount,
+    ng2Lifecycles.unmount,
 ];
 /* harmony export (immutable) */ __webpack_exports__["unmount"] = unmount;
 
-
 function domElementGetter() {
-	return document.getElementById('main-app');
+    return document.getElementById('main-app');
 }
 
 
+/***/ }),
+/* 2 */
+/***/ (function(module, exports) {
 
+module.exports = __WEBPACK_EXTERNAL_MODULE_2__;
 
 /***/ }),
-/* 1 */
-/***/ (function(module, exports, __webpack_require__) {
+/* 3 */
+/***/ (function(module, exports) {
+
+module.exports = __WEBPACK_EXTERNAL_MODULE_3__;
+
+/***/ }),
+/* 4 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__angular_core__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__ = __webpack_require__(5);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__msp_component__ = __webpack_require__(6);
+//declare var window;
+//let NgModule = window.angular.core.NgModule;
+//let BrowserModule = window.angular.BrowserModule;
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-exports.__esModule = true;
-var NgModule = window.angular.core.NgModule;
-var BrowserModule = window.angular.BrowserModule;
-var msp_component_1 = __webpack_require__(2);
-var MainModule = (function () {
-    function MainModule() {
-    }
-    MainModule = __decorate([
-        NgModule({
-            imports: [BrowserModule],
-            declarations: [msp_component_1.MSPApp],
-            bootstrap: [msp_component_1.MSPApp]
-        })
-    ], MainModule);
-    return MainModule;
-}());
-exports["default"] = MainModule;
+
+
+
+let MainModule = class MainModule {
+};
+MainModule = __decorate([
+    Object(__WEBPACK_IMPORTED_MODULE_0__angular_core__["NgModule"])({
+        imports: [__WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__["BrowserModule"]],
+        declarations: [__WEBPACK_IMPORTED_MODULE_2__msp_component__["a" /* MSPApp */]],
+        bootstrap: [__WEBPACK_IMPORTED_MODULE_2__msp_component__["a" /* MSPApp */]]
+    })
+], MainModule);
+/* harmony default export */ __webpack_exports__["a"] = (MainModule);
 
 
 /***/ }),
-/* 2 */
-/***/ (function(module, exports, __webpack_require__) {
+/* 5 */
+/***/ (function(module, exports) {
+
+module.exports = __WEBPACK_EXTERNAL_MODULE_5__;
+
+/***/ }),
+/* 6 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return MSPApp; });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__angular_core__);
+//declare var window;
+//let Component = window.angular.core.Component;
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -158,21 +184,23 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-exports.__esModule = true;
-var Component = window.angular.core.Component;
-var MSPApp = (function () {
-    function MSPApp() {
+
+let MSPApp = class MSPApp {
+    constructor() {
     }
-    MSPApp = __decorate([
-        Component({
-            selector: 'msp-app',
-            template: "\t\t\n\t\t\t\t<h1>\n\t\t\t\t\tMSP Works!\t\t\t\t\t\n\t\t\t\t</h1>\t\t\t\n\t"
-        }),
-        __metadata("design:paramtypes", [])
-    ], MSPApp);
-    return MSPApp;
-}());
-exports.MSPApp = MSPApp;
+};
+MSPApp = __decorate([
+    Object(__WEBPACK_IMPORTED_MODULE_0__angular_core__["Component"])({
+        selector: 'msp-app',
+        template: `		
+				<h1>
+					MSP Works!					
+				</h1>			
+	`,
+    }),
+    __metadata("design:paramtypes", [])
+], MSPApp);
+
 
 
 /***/ })

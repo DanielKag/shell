@@ -1,7 +1,18 @@
 {
   "compilerOptions": {
+	"target": "es6",
     "sourceMap": true,
     "emitDecoratorMetadata": true, 
-    "experimentalDecorators": true
-  }  
+    "experimentalDecorators": true,
+	"allowUnreachableCode": true,
+	"outDir": "tsdist",
+    "baseUrl": "src",
+	"moduleResolution": "node"
+  },
+  "files": [
+    "src/app.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

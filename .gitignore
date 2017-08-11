@@ -7,6 +7,14 @@
 # dependencies
 /node_modules
 
+# child app's dependencies
+/msp/node_modules
+/pta/node_modules
+/pvwa/node_modules
+
+# shell's dependencies
+/shell/node_modules
+
 # IDEs and editors
 /.idea
 .project
