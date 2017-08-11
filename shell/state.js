@@ -1,3 +1,6 @@
+import Redux from 'redux';
+import { createEpicMiddleware } from 'redux-observable'; 
+
 window.shell = {
     store: Redux.createStore((state, action) => action.payload)    
 }
@@ -13,3 +16,5 @@ changeUser();
 const onActiveUserChange = () => {
     changeUser();
 }
+
+document.getElementById('currentUser').addEventListener('keyup', onActiveUserChange);

@@ -39,7 +39,7 @@ System.config({
     'typescript': 'local:typescript/lib/typescript.js',
     'plugin-babel': './node_modules/systemjs-plugin-babel/plugin-babel.js',
     'systemjs-babel-build': './node_modules/systemjs-plugin-babel/systemjs-babel-browser.js',
-
+    'redux': 'local:redux/dist/redux.min.js',
     'single-spa': 'local:single-spa/lib/single-spa.js'    ,
     'single-spa-angular2': 'local:single-spa-angular2/lib/single-spa-angular2.js'    
 

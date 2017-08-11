@@ -26,6 +26,7 @@
     "core-js": "^2.5.0",
     "navigo": "^5.3.0",
     "redux": "^3.7.2",
+    "redux-observable": "^0.15.0",
     "reflect-metadata": "^0.1.10",
     "rxjs": "^5.4.2",
     "single-spa": "^3.5.0",

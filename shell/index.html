@@ -11,7 +11,6 @@
     <script src="./node_modules/zone.js/dist/zone.js"></script>
     <script src="./node_modules/zone.js/dist/long-stack-trace-zone.js"></script>
     <script src="./node_modules/reflect-metadata/Reflect.js"></script>
-    <script src="./node_modules/redux/dist/redux.min.js"></script>
     <script src="./node_modules/systemjs/dist/system.js"></script>
     
     <script src="./lib/system.yuml.js"></script>
@@ -24,7 +23,7 @@
     <div style="background:skyblue">
       
       <div style="padding: 10px; float: right">
-      ActiveUser: <input id="currentUser" value="admin" type="text" onkeyup="onActiveUserChange()"></input>
+      ActiveUser: <input id="currentUser" value="admin" type="text"></input>
       </div>
 
       <h1> This is the Shell </h1>
@@ -44,8 +43,7 @@
         <script>
           SystemJS.import('./shell.js')
         </script>
-        <script src="./state.js"></script>
-
+        
     
   </body>
 </html>

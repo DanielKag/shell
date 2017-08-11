@@ -1208,6 +1208,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 let PVWAApp = class PVWAApp {
     constructor(store) {
         this.store = store;
+        this.getCurrentUser();
     }
     inc() {
         this.store.dispatch({ type: 'INC' });
@@ -1216,7 +1217,7 @@ let PVWAApp = class PVWAApp {
         this.store.dispatch({ type: 'DEC' });
     }
     getCurrentUser() {
-        return window.shell.store.getState();
+        this.currentUser = window.shell.store.getState();
     }
 };
 __decorate([
@@ -1234,14 +1235,15 @@ PVWAApp = __decorate([
 				<div style="background: grey; width:400px">
 					<h3>State Management</h3>
 					<h5>Global state</h5>
-					Current User: {{ getCurrentUser() }}					
+					
+					Current User: <button (click)="getCurrentUser()"> {{ currentUser }} </button>					
 					<br>
 					<h5>Local state</h5>
 					Counter: {{ counter$ | async }}
 					<button (click)="inc()">Increase</button>
 					<button (click)="dec()">Decrease</button>
 				</div>		
-	`,
+	`
     }),
     __metadata("design:paramtypes", [__WEBPACK_IMPORTED_MODULE_0__angular_redux_store__["NgRedux"]])
 ], PVWAApp);

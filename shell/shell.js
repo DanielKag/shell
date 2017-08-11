@@ -3,6 +3,8 @@
 
 
 import {declareChildApplication, start} from 'single-spa';
+import './state.js';
+
 
 const loadApp = name => () => {  
   return SystemJS.import(`./childApps/${name}/bundle.js`);

@@ -1,7 +1,9 @@
 declare var window;
+
+import { Observable, Subject } from 'rxjs/Rx';
 //let Component = window.angular.core.Component;
 import {select, NgRedux} from '@angular-redux/store'
-import {Component} from '@angular/core';
+import {Component, Input, ChangeDetectionStrategy} from '@angular/core';
 import {IPVWAState} from './main-module';
 
 @Component({
@@ -14,19 +16,23 @@ import {IPVWAState} from './main-module';
 				<div style="background: grey; width:400px">
 					<h3>State Management</h3>
 					<h5>Global state</h5>
-					Current User: {{ getCurrentUser() }}					
+					
+					Current User: <button (click)="getCurrentUser()"> {{ currentUser }} </button>					
 					<br>
 					<h5>Local state</h5>
 					Counter: {{ counter$ | async }}
 					<button (click)="inc()">Increase</button>
 					<button (click)="dec()">Decrease</button>
 				</div>		
-	`,
+	`
 })
 export class PVWAApp {
 	
 	@select() counter$;
+	public currentUser: string;
+
 	constructor(private store: NgRedux<IPVWAState>) {
+		this.getCurrentUser();
 	}
 
 	inc() {
@@ -38,6 +44,6 @@ export class PVWAApp {
   	}	  
 
 	getCurrentUser() {
-		return window.shell.store.getState()
+		this.currentUser = window.shell.store.getState()
 	}
 }
