@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {    
+  "scripts": {
     "build:msp": "cd ../msp & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\msp\\bundle.js /Y",
     "build:pta": "cd ../pta & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\pta\\bundle.js /Y",
-    "build:pvwa": "cd ../pvwa & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\pvwa\\bundle.js /Y",    
+    "build:pvwa": "cd ../pvwa & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\pvwa\\bundle.js /Y",
     "build": "webpack ./shell.js bundle.js",
     "build:all": "npm run build:msp & npm run build:pvwa & npm run build:pta & npm run build",
     "start": "http-server -c-1 -o",
@@ -23,6 +23,7 @@
     "@angular/platform-browser": "^4.3.3",
     "@angular/platform-browser-dynamic": "^4.3.3",
     "@angular/router": "^4.3.3",
+    "core-js": "^2.5.0",
     "navigo": "^5.3.0",
     "redux": "^3.7.2",
     "reflect-metadata": "^0.1.10",

@@ -1,4 +1,4 @@
-var angularVersion = '@4.1.2';
+var angularVersion = '';
 
 System.config({
   //use typescript for compilation
@@ -15,28 +15,28 @@ System.config({
   map: {
     
     'app': './src',
-    '@angular/core': 'npm:@angular/core'+ angularVersion + '/bundles/core.umd.js',
-    '@angular/common': 'npm:@angular/common' + angularVersion + '/bundles/common.umd.js',
-    '@angular/compiler': 'npm:@angular/compiler' + angularVersion  + '/bundles/compiler.umd.js',
-    '@angular/platform-browser': 'npm:@angular/platform-browser' + angularVersion + '/bundles/platform-browser.umd.js',
-    '@angular/platform-browser-dynamic': 'npm:@angular/platform-browser-dynamic' + angularVersion + '/bundles/platform-browser-dynamic.umd.js',
-    '@angular/http': 'npm:@angular/http' + angularVersion + '/bundles/http.umd.js',
-    '@angular/router': 'npm:@angular/router' + angularVersion +'/bundles/router.umd.js',
-    '@angular/forms': 'npm:@angular/forms' + angularVersion + '/bundles/forms.umd.js',
-    '@angular/animations': 'npm:@angular/animations' + angularVersion + '/bundles/animations.umd.js',
-    '@angular/platform-browser/animations': 'npm:@angular/platform-browser' + angularVersion + '/bundles/platform-browser-animations.umd.js',
-    '@angular/animations/browser': 'npm:@angular/animations' + angularVersion + '/bundles/animations-browser.umd.js',
+    '@angular/core': 'local:@angular/core' + angularVersion + '/bundles/core.umd.js',
+    '@angular/common': 'local:@angular/common' + angularVersion + '/bundles/common.umd.js',
+    '@angular/compiler': 'local:@angular/compiler' + angularVersion  + '/bundles/compiler.umd.js',
+    '@angular/platform-browser': 'local:@angular/platform-browser' + angularVersion + '/bundles/platform-browser.umd.js',
+    '@angular/platform-browser-dynamic': 'local:@angular/platform-browser-dynamic' + angularVersion + '/bundles/platform-browser-dynamic.umd.js',
+    '@angular/http': 'local:@angular/http' + angularVersion + '/bundles/http.umd.js',
+    '@angular/router': 'local:@angular/router' + angularVersion +'/bundles/router.umd.js',
+    '@angular/forms': 'local:@angular/forms' + angularVersion + '/bundles/forms.umd.js',
+    '@angular/animations': 'local:@angular/animations' + angularVersion + '/bundles/animations.umd.js',
+    '@angular/platform-browser/animations': 'local:@angular/platform-browser' + angularVersion + '/bundles/platform-browser-animations.umd.js',
+    '@angular/animations/browser': 'local:@angular/animations' + angularVersion + '/bundles/animations-browser.umd.js',
     
-    '@angular/core/testing': 'npm:@angular/core' + angularVersion + '/bundles/core-testing.umd.js',
-    '@angular/common/testing': 'npm:@angular/common' + angularVersion + '/bundles/common-testing.umd.js',
-    '@angular/compiler/testing': 'npm:@angular/compiler' + angularVersion + '/bundles/compiler-testing.umd.js',
-    '@angular/platform-browser/testing': 'npm:@angular/platform-browser' + angularVersion + '/bundles/platform-browser-testing.umd.js',
-    '@angular/platform-browser-dynamic/testing': 'npm:@angular/platform-browser-dynamic' + angularVersion + '/bundles/platform-browser-dynamic-testing.umd.js',
-    '@angular/http/testing': 'npm:@angular/http' + angularVersion + '/bundles/http-testing.umd.js',
-    '@angular/router/testing': 'npm:@angular/router' + angularVersion + '/bundles/router-testing.umd.js',
-    'tslib': 'npm:tslib@1.6.1',
-    'rxjs': 'npm:rxjs',
-    'typescript': 'npm:typescript@2.2.1/lib/typescript.js',
+    '@angular/core/testing': 'local:@angular/core' + angularVersion + '/bundles/core-testing.umd.js',
+    '@angular/common/testing': 'local:@angular/common' + angularVersion + '/bundles/common-testing.umd.js',
+    '@angular/compiler/testing': 'local:@angular/compiler' + angularVersion + '/bundles/compiler-testing.umd.js',
+    '@angular/platform-browser/testing': 'local:@angular/platform-browser' + angularVersion + '/bundles/platform-browser-testing.umd.js',
+    '@angular/platform-browser-dynamic/testing': 'local:@angular/platform-browser-dynamic' + angularVersion + '/bundles/platform-browser-dynamic-testing.umd.js',
+    '@angular/http/testing': 'local:@angular/http' + angularVersion + '/bundles/http-testing.umd.js',
+    '@angular/router/testing': 'local:@angular/router' + angularVersion + '/bundles/router-testing.umd.js',
+    'tslib': 'local:tslib',
+    'rxjs': 'local:rxjs',
+    'typescript': 'local:typescript/lib/typescript.js',
     'plugin-babel': './node_modules/systemjs-plugin-babel/plugin-babel.js',
     'systemjs-babel-build': './node_modules/systemjs-plugin-babel/systemjs-babel-browser.js',
 
@@ -44,6 +44,14 @@ System.config({
     'single-spa-angular2': 'local:single-spa-angular2/lib/single-spa-angular2.js'    
 
   },
+
+  packages: {
+    'rxjs': {
+      defaultExtension: 'js'
+    }
+  }
+
+
   //packages defines our app package
 //   packages: {
 //     app: {
