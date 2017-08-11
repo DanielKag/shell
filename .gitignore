@@ -14,6 +14,7 @@
 
 # shell's dependencies
 /shell/node_modules
+/shell-app/node_modules
 
 # IDEs and editors
 /.idea
