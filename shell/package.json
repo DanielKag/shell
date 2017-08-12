@@ -7,7 +7,7 @@
     "build:msp": "cd ../msp & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\msp\\bundle.js /Y",
     "build:pta": "cd ../pta & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\pta\\bundle.js /Y",
     "build:pvwa": "cd ../pvwa & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\pvwa\\bundle.js /Y",
-    "build": "webpack ./shell.js bundle.js",
+    "build": "jspm bundle shell.js ./shell.bundle.js --inject",
     "build:all": "npm run build:msp & npm run build:pvwa & npm run build:pta & npm run build",
     "start": "http-server -c-1 -o",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -39,5 +39,17 @@
   "devDependencies": {
     "ts-loader": "^2.3.2",
     "typescript": "^2.4.2"
+  },
+  "jspm": {
+    "directories": {
+      "baseUrl": "public/js"
+    },
+    "configFile": "lib/system.config.js",
+    "dependencies": {},
+    "devDependencies": {
+      "babel": "npm:babel-core@^5.8.24",
+      "babel-runtime": "npm:babel-runtime@^5.8.24",
+      "core-js": "npm:core-js@^1.1.4"
+    }
   }
 }
