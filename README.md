@@ -16,6 +16,7 @@
 
 ### Builing the application (transpiling and bundling with webpack)
 Note: the application are not being bundled with the vendor packages
+
 `npm run build:pvwa`
 
 `npm run build:msp`
