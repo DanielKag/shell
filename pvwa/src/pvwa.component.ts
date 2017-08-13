@@ -3,7 +3,7 @@ declare var window;
 import { Observable, Subject } from 'rxjs/Rx';
 //let Component = window.angular.core.Component;
 import {select, NgRedux} from '@angular-redux/store'
-import {Component, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Component, Input, ChangeDetectorRef, ElementRef, ViewChild, OnDestroy} from '@angular/core';
 import {IPVWAState} from './main-module';
 
 @Component({
@@ -11,28 +11,42 @@ import {IPVWAState} from './main-module';
 	template: `		
 				<h1>
 					PVWA Works!					
-				</h1>	
+				</h1>				
 
-				<div style="background: grey; width:400px">
-					<h3>State Management</h3>
-					<h5>Global state</h5>
-					
-					Current User: <button (click)="getCurrentUser()"> {{ currentUser }} </button>					
+				<div style="background: grey; width:400px; padding: 20px">
+					Current User: <u>{{ currentUser }}</u>					
 					<br>
 					<h5>Local state</h5>
 					Counter: {{ counter$ | async }}
 					<button (click)="inc()">Increase</button>
 					<button (click)="dec()">Decrease</button>
-				</div>		
+
+					<br><br>
+					<strong>Send message to the shell:</strong>					
+					<br>
+					<input #inputMessage (keyup)="sendMessage()" type="text">
+				</div>	
+
+				
+	
 	`
 })
-export class PVWAApp {
+export class PVWAApp implements OnDestroy {
 	
 	@select() counter$;
+	@ViewChild('inputMessage') input:ElementRef; 
 	public currentUser: string;
+	public unsubscribe;
+	
 
-	constructor(private store: NgRedux<IPVWAState>) {
-		this.getCurrentUser();
+	constructor(private store: NgRedux<IPVWAState>, private cdr:ChangeDetectorRef) {
+		
+		this.currentUser = window.shell.store.getState().currentUser;
+		this.unsubscribe = window.shell.store.subscribe(() => {			
+			this.currentUser = window.shell.store.getState().currentUser;
+			this.cdr.detectChanges();			
+		});
+
 	}
 
 	inc() {
@@ -43,7 +57,12 @@ export class PVWAApp {
     	this.store.dispatch({ type: 'DEC' });
   	}	  
 
-	getCurrentUser() {
-		this.currentUser = window.shell.store.getState()
+	sendMessage() {		
+		const message= this.input.nativeElement.value;
+		window.shell.sendMessage('PVWA', message);
 	}
+
+    ngOnDestroy(){		
+        this.unsubscribe();
+    }
 }

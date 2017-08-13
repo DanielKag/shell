@@ -1206,9 +1206,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 
 
 let PVWAApp = class PVWAApp {
-    constructor(store) {
+    constructor(store, cdr) {
         this.store = store;
-        this.getCurrentUser();
+        this.cdr = cdr;
+        this.currentUser = window.shell.store.getState().currentUser;
+        this.unsubscribe = window.shell.store.subscribe(() => {
+            this.currentUser = window.shell.store.getState().currentUser;
+            this.cdr.detectChanges();
+        });
     }
     inc() {
         this.store.dispatch({ type: 'INC' });
@@ -1216,36 +1221,49 @@ let PVWAApp = class PVWAApp {
     dec() {
         this.store.dispatch({ type: 'DEC' });
     }
-    getCurrentUser() {
-        this.currentUser = window.shell.store.getState();
+    sendMessage() {
+        const message = this.input.nativeElement.value;
+        window.shell.sendMessage('PVWA', message);
+    }
+    ngOnDestroy() {
+        this.unsubscribe();
     }
 };
 __decorate([
     Object(__WEBPACK_IMPORTED_MODULE_0__angular_redux_store__["select"])(),
     __metadata("design:type", Object)
 ], PVWAApp.prototype, "counter$", void 0);
+__decorate([
+    Object(__WEBPACK_IMPORTED_MODULE_1__angular_core__["ViewChild"])('inputMessage'),
+    __metadata("design:type", __WEBPACK_IMPORTED_MODULE_1__angular_core__["ElementRef"])
+], PVWAApp.prototype, "input", void 0);
 PVWAApp = __decorate([
     Object(__WEBPACK_IMPORTED_MODULE_1__angular_core__["Component"])({
         selector: 'pvwa-app',
         template: `		
 				<h1>
 					PVWA Works!					
-				</h1>	
+				</h1>				
 
-				<div style="background: grey; width:400px">
-					<h3>State Management</h3>
-					<h5>Global state</h5>
-					
-					Current User: <button (click)="getCurrentUser()"> {{ currentUser }} </button>					
+				<div style="background: grey; width:400px; padding: 20px">
+					Current User: <u>{{ currentUser }}</u>					
 					<br>
 					<h5>Local state</h5>
 					Counter: {{ counter$ | async }}
 					<button (click)="inc()">Increase</button>
 					<button (click)="dec()">Decrease</button>
-				</div>		
+
+					<br><br>
+					<strong>Send message to the shell:</strong>					
+					<br>
+					<input #inputMessage (keyup)="sendMessage()" type="text">
+				</div>	
+
+				
+	
 	`
     }),
-    __metadata("design:paramtypes", [__WEBPACK_IMPORTED_MODULE_0__angular_redux_store__["NgRedux"]])
+    __metadata("design:paramtypes", [__WEBPACK_IMPORTED_MODULE_0__angular_redux_store__["NgRedux"], __WEBPACK_IMPORTED_MODULE_1__angular_core__["ChangeDetectorRef"]])
 ], PVWAApp);
 
 

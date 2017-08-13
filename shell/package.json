@@ -8,6 +8,7 @@
     "build:pta": "cd ../pta & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\pta\\bundle.js /Y",
     "build:pvwa": "cd ../pvwa & webpack & copy .\\dist\\bundle.js ..\\shell\\childApps\\pvwa\\bundle.js /Y",
     "build": "jspm bundle shell.js ./shell.bundle.js --inject",
+    "prod": "jspm bundle shell.js ./shell.bundle.js --inject --minify",
     "build:all": "npm run build:msp & npm run build:pvwa & npm run build:pta & npm run build",
     "start": "http-server -c-1 -o",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -37,6 +38,7 @@
     "zone.js": "^0.8.16"
   },
   "devDependencies": {
+    "jspm": "^0.16.53",
     "ts-loader": "^2.3.2",
     "typescript": "^2.4.2"
   },

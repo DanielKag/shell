@@ -173,8 +173,6 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_5__;
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return MSPApp; });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__angular_core__);
-//declare var window;
-//let Component = window.angular.core.Component;
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -188,14 +186,28 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 let MSPApp = class MSPApp {
     constructor() {
     }
+    sendMessage() {
+        const message = this.input.nativeElement.value;
+        window.shell.sendMessage('MSP', message);
+    }
 };
+__decorate([
+    Object(__WEBPACK_IMPORTED_MODULE_0__angular_core__["ViewChild"])('inputMessage'),
+    __metadata("design:type", __WEBPACK_IMPORTED_MODULE_0__angular_core__["ElementRef"])
+], MSPApp.prototype, "input", void 0);
 MSPApp = __decorate([
     Object(__WEBPACK_IMPORTED_MODULE_0__angular_core__["Component"])({
         selector: 'msp-app',
         template: `		
 				<h1>
 					MSP Works!					
-				</h1>			
+				</h1>	
+
+				<div style="background: grey; width:400px; padding: 20px">
+					<strong>Send message to the shell:</strong>					
+					<br>
+					<input #inputMessage (keyup)="sendMessage()" type="text">
+				</div>			
 	`,
     }),
     __metadata("design:paramtypes", [])

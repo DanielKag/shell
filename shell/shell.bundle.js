@@ -2,6001 +2,6 @@
 (function() {
 var define = System.amdDefine;
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory() : typeof define === 'function' && define.amd ? define("node_modules/zone.js/dist/zone.js", [], factory) : (factory());
-}(this, (function() {
-  'use strict';
-  var Zone$1 = (function(global) {
-    var performance = global['performance'];
-    function mark(name) {
-      performance && performance['mark'] && performance['mark'](name);
-    }
-    function performanceMeasure(name, label) {
-      performance && performance['measure'] && performance['measure'](name, label);
-    }
-    mark('Zone');
-    if (global['Zone']) {
-      throw new Error('Zone already loaded.');
-    }
-    var Zone = (function() {
-      function Zone(parent, zoneSpec) {
-        this._properties = null;
-        this._parent = parent;
-        this._name = zoneSpec ? zoneSpec.name || 'unnamed' : '<root>';
-        this._properties = zoneSpec && zoneSpec.properties || {};
-        this._zoneDelegate = new ZoneDelegate(this, this._parent && this._parent._zoneDelegate, zoneSpec);
-      }
-      Zone.assertZonePatched = function() {
-        if (global['Promise'] !== patches['ZoneAwarePromise']) {
-          throw new Error('Zone.js has detected that ZoneAwarePromise `(window|global).Promise` ' + 'has been overwritten.\n' + 'Most likely cause is that a Promise polyfill has been loaded ' + 'after Zone.js (Polyfilling Promise api is not necessary when zone.js is loaded. ' + 'If you must load one, do so before loading zone.js.)');
-        }
-      };
-      Object.defineProperty(Zone, "root", {
-        get: function() {
-          var zone = Zone.current;
-          while (zone.parent) {
-            zone = zone.parent;
-          }
-          return zone;
-        },
-        enumerable: true,
-        configurable: true
-      });
-      Object.defineProperty(Zone, "current", {
-        get: function() {
-          return _currentZoneFrame.zone;
-        },
-        enumerable: true,
-        configurable: true
-      });
-      Object.defineProperty(Zone, "currentTask", {
-        get: function() {
-          return _currentTask;
-        },
-        enumerable: true,
-        configurable: true
-      });
-      Zone.__load_patch = function(name, fn) {
-        if (patches.hasOwnProperty(name)) {
-          throw Error('Already loaded patch: ' + name);
-        } else if (!global['__Zone_disable_' + name]) {
-          var perfName = 'Zone:' + name;
-          mark(perfName);
-          patches[name] = fn(global, Zone, _api);
-          performanceMeasure(perfName, perfName);
-        }
-      };
-      Object.defineProperty(Zone.prototype, "parent", {
-        get: function() {
-          return this._parent;
-        },
-        enumerable: true,
-        configurable: true
-      });
-      Object.defineProperty(Zone.prototype, "name", {
-        get: function() {
-          return this._name;
-        },
-        enumerable: true,
-        configurable: true
-      });
-      Zone.prototype.get = function(key) {
-        var zone = this.getZoneWith(key);
-        if (zone)
-          return zone._properties[key];
-      };
-      Zone.prototype.getZoneWith = function(key) {
-        var current = this;
-        while (current) {
-          if (current._properties.hasOwnProperty(key)) {
-            return current;
-          }
-          current = current._parent;
-        }
-        return null;
-      };
-      Zone.prototype.fork = function(zoneSpec) {
-        if (!zoneSpec)
-          throw new Error('ZoneSpec required!');
-        return this._zoneDelegate.fork(this, zoneSpec);
-      };
-      Zone.prototype.wrap = function(callback, source) {
-        if (typeof callback !== 'function') {
-          throw new Error('Expecting function got: ' + callback);
-        }
-        var _callback = this._zoneDelegate.intercept(this, callback, source);
-        var zone = this;
-        return function() {
-          return zone.runGuarded(_callback, this, arguments, source);
-        };
-      };
-      Zone.prototype.run = function(callback, applyThis, applyArgs, source) {
-        if (applyThis === void 0) {
-          applyThis = undefined;
-        }
-        if (applyArgs === void 0) {
-          applyArgs = null;
-        }
-        if (source === void 0) {
-          source = null;
-        }
-        _currentZoneFrame = {
-          parent: _currentZoneFrame,
-          zone: this
-        };
-        try {
-          return this._zoneDelegate.invoke(this, callback, applyThis, applyArgs, source);
-        } finally {
-          _currentZoneFrame = _currentZoneFrame.parent;
-        }
-      };
-      Zone.prototype.runGuarded = function(callback, applyThis, applyArgs, source) {
-        if (applyThis === void 0) {
-          applyThis = null;
-        }
-        if (applyArgs === void 0) {
-          applyArgs = null;
-        }
-        if (source === void 0) {
-          source = null;
-        }
-        _currentZoneFrame = {
-          parent: _currentZoneFrame,
-          zone: this
-        };
-        try {
-          try {
-            return this._zoneDelegate.invoke(this, callback, applyThis, applyArgs, source);
-          } catch (error) {
-            if (this._zoneDelegate.handleError(this, error)) {
-              throw error;
-            }
-          }
-        } finally {
-          _currentZoneFrame = _currentZoneFrame.parent;
-        }
-      };
-      Zone.prototype.runTask = function(task, applyThis, applyArgs) {
-        if (task.zone != this) {
-          throw new Error('A task can only be run in the zone of creation! (Creation: ' + (task.zone || NO_ZONE).name + '; Execution: ' + this.name + ')');
-        }
-        var isNotScheduled = task.state === notScheduled;
-        if (isNotScheduled && task.type === eventTask) {
-          return;
-        }
-        var reEntryGuard = task.state != running;
-        reEntryGuard && task._transitionTo(running, scheduled);
-        task.runCount++;
-        var previousTask = _currentTask;
-        _currentTask = task;
-        _currentZoneFrame = {
-          parent: _currentZoneFrame,
-          zone: this
-        };
-        try {
-          if (task.type == macroTask && task.data && !task.data.isPeriodic) {
-            task.cancelFn = null;
-          }
-          try {
-            return this._zoneDelegate.invokeTask(this, task, applyThis, applyArgs);
-          } catch (error) {
-            if (this._zoneDelegate.handleError(this, error)) {
-              throw error;
-            }
-          }
-        } finally {
-          if (task.state !== notScheduled && task.state !== unknown) {
-            if (task.type == eventTask || (task.data && task.data.isPeriodic)) {
-              reEntryGuard && task._transitionTo(scheduled, running);
-            } else {
-              task.runCount = 0;
-              this._updateTaskCount(task, -1);
-              reEntryGuard && task._transitionTo(notScheduled, running, notScheduled);
-            }
-          }
-          _currentZoneFrame = _currentZoneFrame.parent;
-          _currentTask = previousTask;
-        }
-      };
-      Zone.prototype.scheduleTask = function(task) {
-        if (task.zone && task.zone !== this) {
-          var newZone = this;
-          while (newZone) {
-            if (newZone === task.zone) {
-              throw Error("can not reschedule task to " + this.name + " which is descendants of the original zone " + task.zone.name);
-            }
-            newZone = newZone.parent;
-          }
-        }
-        task._transitionTo(scheduling, notScheduled);
-        var zoneDelegates = [];
-        task._zoneDelegates = zoneDelegates;
-        task._zone = this;
-        try {
-          task = this._zoneDelegate.scheduleTask(this, task);
-        } catch (err) {
-          task._transitionTo(unknown, scheduling, notScheduled);
-          this._zoneDelegate.handleError(this, err);
-          throw err;
-        }
-        if (task._zoneDelegates === zoneDelegates) {
-          this._updateTaskCount(task, 1);
-        }
-        if (task.state == scheduling) {
-          task._transitionTo(scheduled, scheduling);
-        }
-        return task;
-      };
-      Zone.prototype.scheduleMicroTask = function(source, callback, data, customSchedule) {
-        return this.scheduleTask(new ZoneTask(microTask, source, callback, data, customSchedule, null));
-      };
-      Zone.prototype.scheduleMacroTask = function(source, callback, data, customSchedule, customCancel) {
-        return this.scheduleTask(new ZoneTask(macroTask, source, callback, data, customSchedule, customCancel));
-      };
-      Zone.prototype.scheduleEventTask = function(source, callback, data, customSchedule, customCancel) {
-        return this.scheduleTask(new ZoneTask(eventTask, source, callback, data, customSchedule, customCancel));
-      };
-      Zone.prototype.cancelTask = function(task) {
-        if (task.zone != this)
-          throw new Error('A task can only be cancelled in the zone of creation! (Creation: ' + (task.zone || NO_ZONE).name + '; Execution: ' + this.name + ')');
-        task._transitionTo(canceling, scheduled, running);
-        try {
-          this._zoneDelegate.cancelTask(this, task);
-        } catch (err) {
-          task._transitionTo(unknown, canceling);
-          this._zoneDelegate.handleError(this, err);
-          throw err;
-        }
-        this._updateTaskCount(task, -1);
-        task._transitionTo(notScheduled, canceling);
-        task.runCount = 0;
-        return task;
-      };
-      Zone.prototype._updateTaskCount = function(task, count) {
-        var zoneDelegates = task._zoneDelegates;
-        if (count == -1) {
-          task._zoneDelegates = null;
-        }
-        for (var i = 0; i < zoneDelegates.length; i++) {
-          zoneDelegates[i]._updateTaskCount(task.type, count);
-        }
-      };
-      return Zone;
-    }());
-    Zone.__symbol__ = __symbol__;
-    var DELEGATE_ZS = {
-      name: '',
-      onHasTask: function(delegate, _, target, hasTaskState) {
-        return delegate.hasTask(target, hasTaskState);
-      },
-      onScheduleTask: function(delegate, _, target, task) {
-        return delegate.scheduleTask(target, task);
-      },
-      onInvokeTask: function(delegate, _, target, task, applyThis, applyArgs) {
-        return delegate.invokeTask(target, task, applyThis, applyArgs);
-      },
-      onCancelTask: function(delegate, _, target, task) {
-        return delegate.cancelTask(target, task);
-      }
-    };
-    var ZoneDelegate = (function() {
-      function ZoneDelegate(zone, parentDelegate, zoneSpec) {
-        this._taskCounts = {
-          'microTask': 0,
-          'macroTask': 0,
-          'eventTask': 0
-        };
-        this.zone = zone;
-        this._parentDelegate = parentDelegate;
-        this._forkZS = zoneSpec && (zoneSpec && zoneSpec.onFork ? zoneSpec : parentDelegate._forkZS);
-        this._forkDlgt = zoneSpec && (zoneSpec.onFork ? parentDelegate : parentDelegate._forkDlgt);
-        this._forkCurrZone = zoneSpec && (zoneSpec.onFork ? this.zone : parentDelegate.zone);
-        this._interceptZS = zoneSpec && (zoneSpec.onIntercept ? zoneSpec : parentDelegate._interceptZS);
-        this._interceptDlgt = zoneSpec && (zoneSpec.onIntercept ? parentDelegate : parentDelegate._interceptDlgt);
-        this._interceptCurrZone = zoneSpec && (zoneSpec.onIntercept ? this.zone : parentDelegate.zone);
-        this._invokeZS = zoneSpec && (zoneSpec.onInvoke ? zoneSpec : parentDelegate._invokeZS);
-        this._invokeDlgt = zoneSpec && (zoneSpec.onInvoke ? parentDelegate : parentDelegate._invokeDlgt);
-        this._invokeCurrZone = zoneSpec && (zoneSpec.onInvoke ? this.zone : parentDelegate.zone);
-        this._handleErrorZS = zoneSpec && (zoneSpec.onHandleError ? zoneSpec : parentDelegate._handleErrorZS);
-        this._handleErrorDlgt = zoneSpec && (zoneSpec.onHandleError ? parentDelegate : parentDelegate._handleErrorDlgt);
-        this._handleErrorCurrZone = zoneSpec && (zoneSpec.onHandleError ? this.zone : parentDelegate.zone);
-        this._scheduleTaskZS = zoneSpec && (zoneSpec.onScheduleTask ? zoneSpec : parentDelegate._scheduleTaskZS);
-        this._scheduleTaskDlgt = zoneSpec && (zoneSpec.onScheduleTask ? parentDelegate : parentDelegate._scheduleTaskDlgt);
-        this._scheduleTaskCurrZone = zoneSpec && (zoneSpec.onScheduleTask ? this.zone : parentDelegate.zone);
-        this._invokeTaskZS = zoneSpec && (zoneSpec.onInvokeTask ? zoneSpec : parentDelegate._invokeTaskZS);
-        this._invokeTaskDlgt = zoneSpec && (zoneSpec.onInvokeTask ? parentDelegate : parentDelegate._invokeTaskDlgt);
-        this._invokeTaskCurrZone = zoneSpec && (zoneSpec.onInvokeTask ? this.zone : parentDelegate.zone);
-        this._cancelTaskZS = zoneSpec && (zoneSpec.onCancelTask ? zoneSpec : parentDelegate._cancelTaskZS);
-        this._cancelTaskDlgt = zoneSpec && (zoneSpec.onCancelTask ? parentDelegate : parentDelegate._cancelTaskDlgt);
-        this._cancelTaskCurrZone = zoneSpec && (zoneSpec.onCancelTask ? this.zone : parentDelegate.zone);
-        this._hasTaskZS = null;
-        this._hasTaskDlgt = null;
-        this._hasTaskDlgtOwner = null;
-        this._hasTaskCurrZone = null;
-        var zoneSpecHasTask = zoneSpec && zoneSpec.onHasTask;
-        var parentHasTask = parentDelegate && parentDelegate._hasTaskZS;
-        if (zoneSpecHasTask || parentHasTask) {
-          this._hasTaskZS = zoneSpecHasTask ? zoneSpec : DELEGATE_ZS;
-          this._hasTaskDlgt = parentDelegate;
-          this._hasTaskDlgtOwner = this;
-          this._hasTaskCurrZone = zone;
-          if (!zoneSpec.onScheduleTask) {
-            this._scheduleTaskZS = DELEGATE_ZS;
-            this._scheduleTaskDlgt = parentDelegate;
-            this._scheduleTaskCurrZone = this.zone;
-          }
-          if (!zoneSpec.onInvokeTask) {
-            this._invokeTaskZS = DELEGATE_ZS;
-            this._invokeTaskDlgt = parentDelegate;
-            this._invokeTaskCurrZone = this.zone;
-          }
-          if (!zoneSpec.onCancelTask) {
-            this._cancelTaskZS = DELEGATE_ZS;
-            this._cancelTaskDlgt = parentDelegate;
-            this._cancelTaskCurrZone = this.zone;
-          }
-        }
-      }
-      ZoneDelegate.prototype.fork = function(targetZone, zoneSpec) {
-        return this._forkZS ? this._forkZS.onFork(this._forkDlgt, this.zone, targetZone, zoneSpec) : new Zone(targetZone, zoneSpec);
-      };
-      ZoneDelegate.prototype.intercept = function(targetZone, callback, source) {
-        return this._interceptZS ? this._interceptZS.onIntercept(this._interceptDlgt, this._interceptCurrZone, targetZone, callback, source) : callback;
-      };
-      ZoneDelegate.prototype.invoke = function(targetZone, callback, applyThis, applyArgs, source) {
-        return this._invokeZS ? this._invokeZS.onInvoke(this._invokeDlgt, this._invokeCurrZone, targetZone, callback, applyThis, applyArgs, source) : callback.apply(applyThis, applyArgs);
-      };
-      ZoneDelegate.prototype.handleError = function(targetZone, error) {
-        return this._handleErrorZS ? this._handleErrorZS.onHandleError(this._handleErrorDlgt, this._handleErrorCurrZone, targetZone, error) : true;
-      };
-      ZoneDelegate.prototype.scheduleTask = function(targetZone, task) {
-        var returnTask = task;
-        if (this._scheduleTaskZS) {
-          if (this._hasTaskZS) {
-            returnTask._zoneDelegates.push(this._hasTaskDlgtOwner);
-          }
-          returnTask = this._scheduleTaskZS.onScheduleTask(this._scheduleTaskDlgt, this._scheduleTaskCurrZone, targetZone, task);
-          if (!returnTask)
-            returnTask = task;
-        } else {
-          if (task.scheduleFn) {
-            task.scheduleFn(task);
-          } else if (task.type == microTask) {
-            scheduleMicroTask(task);
-          } else {
-            throw new Error('Task is missing scheduleFn.');
-          }
-        }
-        return returnTask;
-      };
-      ZoneDelegate.prototype.invokeTask = function(targetZone, task, applyThis, applyArgs) {
-        return this._invokeTaskZS ? this._invokeTaskZS.onInvokeTask(this._invokeTaskDlgt, this._invokeTaskCurrZone, targetZone, task, applyThis, applyArgs) : task.callback.apply(applyThis, applyArgs);
-      };
-      ZoneDelegate.prototype.cancelTask = function(targetZone, task) {
-        var value;
-        if (this._cancelTaskZS) {
-          value = this._cancelTaskZS.onCancelTask(this._cancelTaskDlgt, this._cancelTaskCurrZone, targetZone, task);
-        } else {
-          if (!task.cancelFn) {
-            throw Error('Task is not cancelable');
-          }
-          value = task.cancelFn(task);
-        }
-        return value;
-      };
-      ZoneDelegate.prototype.hasTask = function(targetZone, isEmpty) {
-        try {
-          return this._hasTaskZS && this._hasTaskZS.onHasTask(this._hasTaskDlgt, this._hasTaskCurrZone, targetZone, isEmpty);
-        } catch (err) {
-          this.handleError(targetZone, err);
-        }
-      };
-      ZoneDelegate.prototype._updateTaskCount = function(type, count) {
-        var counts = this._taskCounts;
-        var prev = counts[type];
-        var next = counts[type] = prev + count;
-        if (next < 0) {
-          throw new Error('More tasks executed then were scheduled.');
-        }
-        if (prev == 0 || next == 0) {
-          var isEmpty = {
-            microTask: counts.microTask > 0,
-            macroTask: counts.macroTask > 0,
-            eventTask: counts.eventTask > 0,
-            change: type
-          };
-          this.hasTask(this.zone, isEmpty);
-        }
-      };
-      return ZoneDelegate;
-    }());
-    var ZoneTask = (function() {
-      function ZoneTask(type, source, callback, options, scheduleFn, cancelFn) {
-        this._zone = null;
-        this.runCount = 0;
-        this._zoneDelegates = null;
-        this._state = 'notScheduled';
-        this.type = type;
-        this.source = source;
-        this.data = options;
-        this.scheduleFn = scheduleFn;
-        this.cancelFn = cancelFn;
-        this.callback = callback;
-        var self = this;
-        if (type === eventTask && options && options.isUsingGlobalCallback) {
-          this.invoke = ZoneTask.invokeTask;
-        } else {
-          this.invoke = function() {
-            return ZoneTask.invokeTask.apply(global, [self, this, arguments]);
-          };
-        }
-      }
-      ZoneTask.invokeTask = function(task, target, args) {
-        if (!task) {
-          task = this;
-        }
-        _numberOfNestedTaskFrames++;
-        try {
-          task.runCount++;
-          return task.zone.runTask(task, target, args);
-        } finally {
-          if (_numberOfNestedTaskFrames == 1) {
-            drainMicroTaskQueue();
-          }
-          _numberOfNestedTaskFrames--;
-        }
-      };
-      Object.defineProperty(ZoneTask.prototype, "zone", {
-        get: function() {
-          return this._zone;
-        },
-        enumerable: true,
-        configurable: true
-      });
-      Object.defineProperty(ZoneTask.prototype, "state", {
-        get: function() {
-          return this._state;
-        },
-        enumerable: true,
-        configurable: true
-      });
-      ZoneTask.prototype.cancelScheduleRequest = function() {
-        this._transitionTo(notScheduled, scheduling);
-      };
-      ZoneTask.prototype._transitionTo = function(toState, fromState1, fromState2) {
-        if (this._state === fromState1 || this._state === fromState2) {
-          this._state = toState;
-          if (toState == notScheduled) {
-            this._zoneDelegates = null;
-          }
-        } else {
-          throw new Error(this.type + " '" + this.source + "': can not transition to '" + toState + "', expecting state '" + fromState1 + "'" + (fromState2 ? ' or \'' + fromState2 + '\'' : '') + ", was '" + this._state + "'.");
-        }
-      };
-      ZoneTask.prototype.toString = function() {
-        if (this.data && typeof this.data.handleId !== 'undefined') {
-          return this.data.handleId;
-        } else {
-          return Object.prototype.toString.call(this);
-        }
-      };
-      ZoneTask.prototype.toJSON = function() {
-        return {
-          type: this.type,
-          state: this.state,
-          source: this.source,
-          zone: this.zone.name,
-          invoke: this.invoke,
-          scheduleFn: this.scheduleFn,
-          cancelFn: this.cancelFn,
-          runCount: this.runCount,
-          callback: this.callback
-        };
-      };
-      return ZoneTask;
-    }());
-    var symbolSetTimeout = __symbol__('setTimeout');
-    var symbolPromise = __symbol__('Promise');
-    var symbolThen = __symbol__('then');
-    var _microTaskQueue = [];
-    var _isDrainingMicrotaskQueue = false;
-    function scheduleMicroTask(task) {
-      if (_numberOfNestedTaskFrames === 0 && _microTaskQueue.length === 0) {
-        if (global[symbolPromise]) {
-          global[symbolPromise].resolve(0)[symbolThen](drainMicroTaskQueue);
-        } else {
-          global[symbolSetTimeout](drainMicroTaskQueue, 0);
-        }
-      }
-      task && _microTaskQueue.push(task);
-    }
-    function drainMicroTaskQueue() {
-      if (!_isDrainingMicrotaskQueue) {
-        _isDrainingMicrotaskQueue = true;
-        while (_microTaskQueue.length) {
-          var queue = _microTaskQueue;
-          _microTaskQueue = [];
-          for (var i = 0; i < queue.length; i++) {
-            var task = queue[i];
-            try {
-              task.zone.runTask(task, null, null);
-            } catch (error) {
-              _api.onUnhandledError(error);
-            }
-          }
-        }
-        var showError = !Zone[__symbol__('ignoreConsoleErrorUncaughtError')];
-        _api.microtaskDrainDone();
-        _isDrainingMicrotaskQueue = false;
-      }
-    }
-    var NO_ZONE = {name: 'NO ZONE'};
-    var notScheduled = 'notScheduled',
-        scheduling = 'scheduling',
-        scheduled = 'scheduled',
-        running = 'running',
-        canceling = 'canceling',
-        unknown = 'unknown';
-    var microTask = 'microTask',
-        macroTask = 'macroTask',
-        eventTask = 'eventTask';
-    var patches = {};
-    var _api = {
-      symbol: __symbol__,
-      currentZoneFrame: function() {
-        return _currentZoneFrame;
-      },
-      onUnhandledError: noop,
-      microtaskDrainDone: noop,
-      scheduleMicroTask: scheduleMicroTask,
-      showUncaughtError: function() {
-        return !Zone[__symbol__('ignoreConsoleErrorUncaughtError')];
-      },
-      patchEventTarget: function() {
-        return [];
-      },
-      patchOnProperties: noop,
-      patchMethod: function() {
-        return noop;
-      }
-    };
-    var _currentZoneFrame = {
-      parent: null,
-      zone: new Zone(null, null)
-    };
-    var _currentTask = null;
-    var _numberOfNestedTaskFrames = 0;
-    function noop() {}
-    function __symbol__(name) {
-      return '__zone_symbol__' + name;
-    }
-    performanceMeasure('Zone', 'Zone');
-    return global['Zone'] = Zone;
-  })(typeof window !== 'undefined' && window || typeof self !== 'undefined' && self || global);
-  Zone.__load_patch('ZoneAwarePromise', function(global, Zone, api) {
-    var __symbol__ = api.symbol;
-    var _uncaughtPromiseErrors = [];
-    var symbolPromise = __symbol__('Promise');
-    var symbolThen = __symbol__('then');
-    api.onUnhandledError = function(e) {
-      if (api.showUncaughtError()) {
-        var rejection = e && e.rejection;
-        if (rejection) {
-          console.error('Unhandled Promise rejection:', rejection instanceof Error ? rejection.message : rejection, '; Zone:', e.zone.name, '; Task:', e.task && e.task.source, '; Value:', rejection, rejection instanceof Error ? rejection.stack : undefined);
-        } else {
-          console.error(e);
-        }
-      }
-    };
-    api.microtaskDrainDone = function() {
-      while (_uncaughtPromiseErrors.length) {
-        var _loop_1 = function() {
-          var uncaughtPromiseError = _uncaughtPromiseErrors.shift();
-          try {
-            uncaughtPromiseError.zone.runGuarded(function() {
-              throw uncaughtPromiseError;
-            });
-          } catch (error) {
-            handleUnhandledRejection(error);
-          }
-        };
-        while (_uncaughtPromiseErrors.length) {
-          _loop_1();
-        }
-      }
-    };
-    function handleUnhandledRejection(e) {
-      api.onUnhandledError(e);
-      try {
-        var handler = Zone[__symbol__('unhandledPromiseRejectionHandler')];
-        if (handler && typeof handler === 'function') {
-          handler.apply(this, [e]);
-        }
-      } catch (err) {}
-    }
-    function isThenable(value) {
-      return value && value.then;
-    }
-    function forwardResolution(value) {
-      return value;
-    }
-    function forwardRejection(rejection) {
-      return ZoneAwarePromise.reject(rejection);
-    }
-    var symbolState = __symbol__('state');
-    var symbolValue = __symbol__('value');
-    var source = 'Promise.then';
-    var UNRESOLVED = null;
-    var RESOLVED = true;
-    var REJECTED = false;
-    var REJECTED_NO_CATCH = 0;
-    function makeResolver(promise, state) {
-      return function(v) {
-        try {
-          resolvePromise(promise, state, v);
-        } catch (err) {
-          resolvePromise(promise, false, err);
-        }
-      };
-    }
-    var once = function() {
-      var wasCalled = false;
-      return function wrapper(wrappedFunction) {
-        return function() {
-          if (wasCalled) {
-            return;
-          }
-          wasCalled = true;
-          wrappedFunction.apply(null, arguments);
-        };
-      };
-    };
-    function resolvePromise(promise, state, value) {
-      var onceWrapper = once();
-      if (promise === value) {
-        throw new TypeError('Promise resolved with itself');
-      }
-      if (promise[symbolState] === UNRESOLVED) {
-        var then = null;
-        try {
-          if (typeof value === 'object' || typeof value === 'function') {
-            then = value && value.then;
-          }
-        } catch (err) {
-          onceWrapper(function() {
-            resolvePromise(promise, false, err);
-          })();
-          return promise;
-        }
-        if (state !== REJECTED && value instanceof ZoneAwarePromise && value.hasOwnProperty(symbolState) && value.hasOwnProperty(symbolValue) && value[symbolState] !== UNRESOLVED) {
-          clearRejectedNoCatch(value);
-          resolvePromise(promise, value[symbolState], value[symbolValue]);
-        } else if (state !== REJECTED && typeof then === 'function') {
-          try {
-            then.apply(value, [onceWrapper(makeResolver(promise, state)), onceWrapper(makeResolver(promise, false))]);
-          } catch (err) {
-            onceWrapper(function() {
-              resolvePromise(promise, false, err);
-            })();
-          }
-        } else {
-          promise[symbolState] = state;
-          var queue = promise[symbolValue];
-          promise[symbolValue] = value;
-          if (state === REJECTED && value instanceof Error) {
-            value[__symbol__('currentTask')] = Zone.currentTask;
-          }
-          for (var i = 0; i < queue.length; ) {
-            scheduleResolveOrReject(promise, queue[i++], queue[i++], queue[i++], queue[i++]);
-          }
-          if (queue.length == 0 && state == REJECTED) {
-            promise[symbolState] = REJECTED_NO_CATCH;
-            try {
-              throw new Error('Uncaught (in promise): ' + value + (value && value.stack ? '\n' + value.stack : ''));
-            } catch (err) {
-              var error_1 = err;
-              error_1.rejection = value;
-              error_1.promise = promise;
-              error_1.zone = Zone.current;
-              error_1.task = Zone.currentTask;
-              _uncaughtPromiseErrors.push(error_1);
-              api.scheduleMicroTask();
-            }
-          }
-        }
-      }
-      return promise;
-    }
-    function clearRejectedNoCatch(promise) {
-      if (promise[symbolState] === REJECTED_NO_CATCH) {
-        try {
-          var handler = Zone[__symbol__('rejectionHandledHandler')];
-          if (handler && typeof handler === 'function') {
-            handler.apply(this, [{
-              rejection: promise[symbolValue],
-              promise: promise
-            }]);
-          }
-        } catch (err) {}
-        promise[symbolState] = REJECTED;
-        for (var i = 0; i < _uncaughtPromiseErrors.length; i++) {
-          if (promise === _uncaughtPromiseErrors[i].promise) {
-            _uncaughtPromiseErrors.splice(i, 1);
-          }
-        }
-      }
-    }
-    function scheduleResolveOrReject(promise, zone, chainPromise, onFulfilled, onRejected) {
-      clearRejectedNoCatch(promise);
-      var delegate = promise[symbolState] ? (typeof onFulfilled === 'function') ? onFulfilled : forwardResolution : (typeof onRejected === 'function') ? onRejected : forwardRejection;
-      zone.scheduleMicroTask(source, function() {
-        try {
-          resolvePromise(chainPromise, true, zone.run(delegate, undefined, [promise[symbolValue]]));
-        } catch (error) {
-          resolvePromise(chainPromise, false, error);
-        }
-      });
-    }
-    var ZoneAwarePromise = (function() {
-      function ZoneAwarePromise(executor) {
-        var promise = this;
-        if (!(promise instanceof ZoneAwarePromise)) {
-          throw new Error('Must be an instanceof Promise.');
-        }
-        promise[symbolState] = UNRESOLVED;
-        promise[symbolValue] = [];
-        try {
-          executor && executor(makeResolver(promise, RESOLVED), makeResolver(promise, REJECTED));
-        } catch (error) {
-          resolvePromise(promise, false, error);
-        }
-      }
-      ZoneAwarePromise.toString = function() {
-        return 'function ZoneAwarePromise() { [native code] }';
-      };
-      ZoneAwarePromise.resolve = function(value) {
-        return resolvePromise(new this(null), RESOLVED, value);
-      };
-      ZoneAwarePromise.reject = function(error) {
-        return resolvePromise(new this(null), REJECTED, error);
-      };
-      ZoneAwarePromise.race = function(values) {
-        var resolve;
-        var reject;
-        var promise = new this(function(res, rej) {
-          _a = [res, rej], resolve = _a[0], reject = _a[1];
-          var _a;
-        });
-        function onResolve(value) {
-          promise && (promise = null || resolve(value));
-        }
-        function onReject(error) {
-          promise && (promise = null || reject(error));
-        }
-        for (var _i = 0,
-            values_1 = values; _i < values_1.length; _i++) {
-          var value = values_1[_i];
-          if (!isThenable(value)) {
-            value = this.resolve(value);
-          }
-          value.then(onResolve, onReject);
-        }
-        return promise;
-      };
-      ZoneAwarePromise.all = function(values) {
-        var resolve;
-        var reject;
-        var promise = new this(function(res, rej) {
-          resolve = res;
-          reject = rej;
-        });
-        var count = 0;
-        var resolvedValues = [];
-        for (var _i = 0,
-            values_2 = values; _i < values_2.length; _i++) {
-          var value = values_2[_i];
-          if (!isThenable(value)) {
-            value = this.resolve(value);
-          }
-          value.then((function(index) {
-            return function(value) {
-              resolvedValues[index] = value;
-              count--;
-              if (!count) {
-                resolve(resolvedValues);
-              }
-            };
-          })(count), reject);
-          count++;
-        }
-        if (!count)
-          resolve(resolvedValues);
-        return promise;
-      };
-      ZoneAwarePromise.prototype.then = function(onFulfilled, onRejected) {
-        var chainPromise = new this.constructor(null);
-        var zone = Zone.current;
-        if (this[symbolState] == UNRESOLVED) {
-          this[symbolValue].push(zone, chainPromise, onFulfilled, onRejected);
-        } else {
-          scheduleResolveOrReject(this, zone, chainPromise, onFulfilled, onRejected);
-        }
-        return chainPromise;
-      };
-      ZoneAwarePromise.prototype.catch = function(onRejected) {
-        return this.then(null, onRejected);
-      };
-      return ZoneAwarePromise;
-    }());
-    ZoneAwarePromise['resolve'] = ZoneAwarePromise.resolve;
-    ZoneAwarePromise['reject'] = ZoneAwarePromise.reject;
-    ZoneAwarePromise['race'] = ZoneAwarePromise.race;
-    ZoneAwarePromise['all'] = ZoneAwarePromise.all;
-    var NativePromise = global[symbolPromise] = global['Promise'];
-    global['Promise'] = ZoneAwarePromise;
-    var symbolThenPatched = __symbol__('thenPatched');
-    function patchThen(Ctor) {
-      var proto = Ctor.prototype;
-      var originalThen = proto.then;
-      proto[symbolThen] = originalThen;
-      var prop = Object.getOwnPropertyDescriptor(Ctor.prototype, 'then');
-      if (prop && prop.writable === false && prop.configurable) {
-        Object.defineProperty(Ctor.prototype, 'then', {writable: true});
-      }
-      Ctor.prototype.then = function(onResolve, onReject) {
-        var _this = this;
-        var wrapped = new ZoneAwarePromise(function(resolve, reject) {
-          originalThen.call(_this, resolve, reject);
-        });
-        return wrapped.then(onResolve, onReject);
-      };
-      Ctor[symbolThenPatched] = true;
-    }
-    function zoneify(fn) {
-      return function() {
-        var resultPromise = fn.apply(this, arguments);
-        if (resultPromise instanceof ZoneAwarePromise) {
-          return resultPromise;
-        }
-        var ctor = resultPromise.constructor;
-        if (!ctor[symbolThenPatched]) {
-          patchThen(ctor);
-        }
-        return resultPromise;
-      };
-    }
-    if (NativePromise) {
-      patchThen(NativePromise);
-      var fetch_1 = global['fetch'];
-      if (typeof fetch_1 == 'function') {
-        global['fetch'] = zoneify(fetch_1);
-      }
-    }
-    Promise[Zone.__symbol__('uncaughtPromiseErrors')] = _uncaughtPromiseErrors;
-    return ZoneAwarePromise;
-  });
-  var zoneSymbol = Zone.__symbol__;
-  var _global = typeof window === 'object' && window || typeof self === 'object' && self || global;
-  function bindArguments(args, source) {
-    for (var i = args.length - 1; i >= 0; i--) {
-      if (typeof args[i] === 'function') {
-        args[i] = Zone.current.wrap(args[i], source + '_' + i);
-      }
-    }
-    return args;
-  }
-  function patchPrototype(prototype, fnNames) {
-    var source = prototype.constructor['name'];
-    var _loop_1 = function(i) {
-      var name_1 = fnNames[i];
-      var delegate = prototype[name_1];
-      if (delegate) {
-        prototype[name_1] = (function(delegate) {
-          var patched = function() {
-            return delegate.apply(this, bindArguments(arguments, source + '.' + name_1));
-          };
-          attachOriginToPatched(patched, delegate);
-          return patched;
-        })(delegate);
-      }
-    };
-    for (var i = 0; i < fnNames.length; i++) {
-      _loop_1(i);
-    }
-  }
-  var isWebWorker = (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope);
-  var isNode = (!('nw' in _global) && typeof _global.process !== 'undefined' && {}.toString.call(_global.process) === '[object process]');
-  var isBrowser = !isNode && !isWebWorker && !!(typeof window !== 'undefined' && window['HTMLElement']);
-  var isMix = typeof _global.process !== 'undefined' && {}.toString.call(_global.process) === '[object process]' && !isWebWorker && !!(typeof window !== 'undefined' && window['HTMLElement']);
-  function patchProperty(obj, prop, prototype) {
-    var desc = Object.getOwnPropertyDescriptor(obj, prop);
-    if (!desc && prototype) {
-      var prototypeDesc = Object.getOwnPropertyDescriptor(prototype, prop);
-      if (prototypeDesc) {
-        desc = {
-          enumerable: true,
-          configurable: true
-        };
-      }
-    }
-    if (!desc || !desc.configurable) {
-      return;
-    }
-    delete desc.writable;
-    delete desc.value;
-    var originalDescGet = desc.get;
-    var eventName = prop.substr(2);
-    var _prop = zoneSymbol('_' + prop);
-    desc.set = function(newValue) {
-      var target = this;
-      if (!target && obj === _global) {
-        target = _global;
-      }
-      if (!target) {
-        return;
-      }
-      var previousValue = target[_prop];
-      if (previousValue) {
-        target.removeEventListener(eventName, previousValue);
-      }
-      if (typeof newValue === 'function') {
-        var wrapFn = function(event) {
-          var result = newValue.apply(this, arguments);
-          if (result != undefined && !result) {
-            event.preventDefault();
-          }
-          return result;
-        };
-        target[_prop] = wrapFn;
-        target.addEventListener(eventName, wrapFn, false);
-      } else {
-        target[_prop] = null;
-      }
-    };
-    desc.get = function() {
-      var target = this;
-      if (!target && obj === _global) {
-        target = _global;
-      }
-      if (!target) {
-        return null;
-      }
-      if (target.hasOwnProperty(_prop)) {
-        return target[_prop];
-      } else if (originalDescGet) {
-        var value = originalDescGet && originalDescGet.apply(this);
-        if (value) {
-          desc.set.apply(this, [value]);
-          if (typeof target['removeAttribute'] === 'function') {
-            target.removeAttribute(prop);
-          }
-          return value;
-        }
-      }
-      return null;
-    };
-    Object.defineProperty(obj, prop, desc);
-  }
-  function patchOnProperties(obj, properties, prototype) {
-    if (properties) {
-      for (var i = 0; i < properties.length; i++) {
-        patchProperty(obj, 'on' + properties[i], prototype);
-      }
-    } else {
-      var onProperties = [];
-      for (var prop in obj) {
-        if (prop.substr(0, 2) == 'on') {
-          onProperties.push(prop);
-        }
-      }
-      for (var j = 0; j < onProperties.length; j++) {
-        patchProperty(obj, onProperties[j], prototype);
-      }
-    }
-  }
-  var originalInstanceKey = zoneSymbol('originalInstance');
-  function patchClass(className) {
-    var OriginalClass = _global[className];
-    if (!OriginalClass)
-      return;
-    _global[zoneSymbol(className)] = OriginalClass;
-    _global[className] = function() {
-      var a = bindArguments(arguments, className);
-      switch (a.length) {
-        case 0:
-          this[originalInstanceKey] = new OriginalClass();
-          break;
-        case 1:
-          this[originalInstanceKey] = new OriginalClass(a[0]);
-          break;
-        case 2:
-          this[originalInstanceKey] = new OriginalClass(a[0], a[1]);
-          break;
-        case 3:
-          this[originalInstanceKey] = new OriginalClass(a[0], a[1], a[2]);
-          break;
-        case 4:
-          this[originalInstanceKey] = new OriginalClass(a[0], a[1], a[2], a[3]);
-          break;
-        default:
-          throw new Error('Arg list too long.');
-      }
-    };
-    attachOriginToPatched(_global[className], OriginalClass);
-    var instance = new OriginalClass(function() {});
-    var prop;
-    for (prop in instance) {
-      if (className === 'XMLHttpRequest' && prop === 'responseBlob')
-        continue;
-      (function(prop) {
-        if (typeof instance[prop] === 'function') {
-          _global[className].prototype[prop] = function() {
-            return this[originalInstanceKey][prop].apply(this[originalInstanceKey], arguments);
-          };
-        } else {
-          Object.defineProperty(_global[className].prototype, prop, {
-            set: function(fn) {
-              if (typeof fn === 'function') {
-                this[originalInstanceKey][prop] = Zone.current.wrap(fn, className + '.' + prop);
-                attachOriginToPatched(this[originalInstanceKey][prop], fn);
-              } else {
-                this[originalInstanceKey][prop] = fn;
-              }
-            },
-            get: function() {
-              return this[originalInstanceKey][prop];
-            }
-          });
-        }
-      }(prop));
-    }
-    for (prop in OriginalClass) {
-      if (prop !== 'prototype' && OriginalClass.hasOwnProperty(prop)) {
-        _global[className][prop] = OriginalClass[prop];
-      }
-    }
-  }
-  function patchMethod(target, name, patchFn) {
-    var proto = target;
-    while (proto && !proto.hasOwnProperty(name)) {
-      proto = Object.getPrototypeOf(proto);
-    }
-    if (!proto && target[name]) {
-      proto = target;
-    }
-    var delegateName = zoneSymbol(name);
-    var delegate;
-    if (proto && !(delegate = proto[delegateName])) {
-      delegate = proto[delegateName] = proto[name];
-      var patchDelegate_1 = patchFn(delegate, delegateName, name);
-      proto[name] = function() {
-        return patchDelegate_1(this, arguments);
-      };
-      attachOriginToPatched(proto[name], delegate);
-    }
-    return delegate;
-  }
-  function patchMacroTask(obj, funcName, metaCreator) {
-    var setNative = null;
-    function scheduleTask(task) {
-      var data = task.data;
-      data.args[data.callbackIndex] = function() {
-        task.invoke.apply(this, arguments);
-      };
-      setNative.apply(data.target, data.args);
-      return task;
-    }
-    setNative = patchMethod(obj, funcName, function(delegate) {
-      return function(self, args) {
-        var meta = metaCreator(self, args);
-        if (meta.callbackIndex >= 0 && typeof args[meta.callbackIndex] === 'function') {
-          var task = Zone.current.scheduleMacroTask(meta.name, args[meta.callbackIndex], meta, scheduleTask, null);
-          return task;
-        } else {
-          return delegate.apply(self, args);
-        }
-      };
-    });
-  }
-  function attachOriginToPatched(patched, original) {
-    patched[zoneSymbol('OriginalDelegate')] = original;
-  }
-  var isDetectedIEOrEdge = false;
-  var ieOrEdge = false;
-  function isIEOrEdge() {
-    if (isDetectedIEOrEdge) {
-      return ieOrEdge;
-    }
-    isDetectedIEOrEdge = true;
-    try {
-      var ua = window.navigator.userAgent;
-      var msie = ua.indexOf('MSIE ');
-      if (ua.indexOf('MSIE ') !== -1 || ua.indexOf('Trident/') !== -1 || ua.indexOf('Edge/') !== -1) {
-        ieOrEdge = true;
-      }
-      return ieOrEdge;
-    } catch (error) {}
-  }
-  Zone.__load_patch('toString', function(global, Zone, api) {
-    var originalFunctionToString = Zone['__zone_symbol__originalToString'] = Function.prototype.toString;
-    Function.prototype.toString = function() {
-      if (typeof this === 'function') {
-        var originalDelegate = this[zoneSymbol('OriginalDelegate')];
-        if (originalDelegate) {
-          if (typeof originalDelegate === 'function') {
-            return originalFunctionToString.apply(this[zoneSymbol('OriginalDelegate')], arguments);
-          } else {
-            return Object.prototype.toString.call(originalDelegate);
-          }
-        }
-        if (this === Promise) {
-          var nativePromise = global[zoneSymbol('Promise')];
-          if (nativePromise) {
-            return originalFunctionToString.apply(nativePromise, arguments);
-          }
-        }
-        if (this === Error) {
-          var nativeError = global[zoneSymbol('Error')];
-          if (nativeError) {
-            return originalFunctionToString.apply(nativeError, arguments);
-          }
-        }
-      }
-      return originalFunctionToString.apply(this, arguments);
-    };
-    var originalObjectToString = Object.prototype.toString;
-    Object.prototype.toString = function() {
-      if (this instanceof Promise) {
-        return '[object Promise]';
-      }
-      return originalObjectToString.apply(this, arguments);
-    };
-  });
-  var TRUE_STR = 'true';
-  var FALSE_STR = 'false';
-  var OPTIMIZED_ZONE_EVENT_TASK_DATA = {isUsingGlobalCallback: true};
-  var zoneSymbolEventNames = {};
-  var globalSources = {};
-  var CONSTRUCTOR_NAME = 'name';
-  var FUNCTION_TYPE = 'function';
-  var OBJECT_TYPE = 'object';
-  var ZONE_SYMBOL_PREFIX = '__zone_symbol__';
-  var EVENT_NAME_SYMBOL_REGX = /^__zone_symbol__(\w+)(true|false)$/;
-  function patchEventTarget(_global, apis, patchOptions) {
-    var ADD_EVENT_LISTENER = (patchOptions && patchOptions.addEventListenerFnName) || 'addEventListener';
-    var REMOVE_EVENT_LISTENER = (patchOptions && patchOptions.removeEventListenerFnName) || 'removeEventListener';
-    var LISTENERS_EVENT_LISTENER = (patchOptions && patchOptions.listenersFnName) || 'eventListeners';
-    var REMOVE_ALL_LISTENERS_EVENT_LISTENER = (patchOptions && patchOptions.removeAllFnName) || 'removeAllListeners';
-    var zoneSymbolAddEventListener = zoneSymbol(ADD_EVENT_LISTENER);
-    var ADD_EVENT_LISTENER_SOURCE = '.' + ADD_EVENT_LISTENER + ':';
-    var PREPEND_EVENT_LISTENER = 'prependListener';
-    var PREPEND_EVENT_LISTENER_SOURCE = '.' + PREPEND_EVENT_LISTENER + ':';
-    var invokeTask = function(task, target, event) {
-      if (task.isRemoved) {
-        return;
-      }
-      var delegate = task.callback;
-      if (typeof delegate === OBJECT_TYPE && delegate.handleEvent) {
-        task.callback = function(event) {
-          return delegate.handleEvent(event);
-        };
-        task.originalDelegate = delegate;
-      }
-      task.invoke(task, target, [event]);
-      var options = task.options;
-      if (options && typeof options === 'object' && options.once) {
-        var delegate_1 = task.originalDelegate ? task.originalDelegate : task.callback;
-        target[REMOVE_EVENT_LISTENER].apply(target, [event.type, delegate_1, options]);
-      }
-    };
-    var globalZoneAwareCallback = function(event) {
-      var target = this || _global;
-      var tasks = target[zoneSymbolEventNames[event.type][FALSE_STR]];
-      if (tasks) {
-        if (tasks.length === 1) {
-          invokeTask(tasks[0], target, event);
-        } else {
-          var copyTasks = tasks.slice();
-          for (var i = 0; i < copyTasks.length; i++) {
-            invokeTask(copyTasks[i], target, event);
-          }
-        }
-      }
-    };
-    var globalZoneAwareCaptureCallback = function(event) {
-      var target = this || _global;
-      var tasks = target[zoneSymbolEventNames[event.type][TRUE_STR]];
-      if (tasks) {
-        if (tasks.length === 1) {
-          invokeTask(tasks[0], target, event);
-        } else {
-          var copyTasks = tasks.slice();
-          for (var i = 0; i < copyTasks.length; i++) {
-            invokeTask(copyTasks[i], target, event);
-          }
-        }
-      }
-    };
-    function patchEventTargetMethods(obj, patchOptions) {
-      if (!obj) {
-        return false;
-      }
-      var useGlobalCallback = true;
-      if (patchOptions && patchOptions.useGlobalCallback !== undefined) {
-        useGlobalCallback = patchOptions.useGlobalCallback;
-      }
-      var validateHandler = patchOptions && patchOptions.validateHandler;
-      var checkDuplicate = true;
-      if (patchOptions && patchOptions.checkDuplicate !== undefined) {
-        checkDuplicate = patchOptions.checkDuplicate;
-      }
-      var returnTarget = false;
-      if (patchOptions && patchOptions.returnTarget !== undefined) {
-        returnTarget = patchOptions.returnTarget;
-      }
-      var proto = obj;
-      while (proto && !proto.hasOwnProperty(ADD_EVENT_LISTENER)) {
-        proto = Object.getPrototypeOf(proto);
-      }
-      if (!proto && obj[ADD_EVENT_LISTENER]) {
-        proto = obj;
-      }
-      if (!proto) {
-        return false;
-      }
-      if (proto[zoneSymbolAddEventListener]) {
-        return false;
-      }
-      var taskData = {};
-      var nativeAddEventListener = proto[zoneSymbolAddEventListener] = proto[ADD_EVENT_LISTENER];
-      var nativeRemoveEventListener = proto[zoneSymbol(REMOVE_EVENT_LISTENER)] = proto[REMOVE_EVENT_LISTENER];
-      var nativeListeners = proto[zoneSymbol(LISTENERS_EVENT_LISTENER)] = proto[LISTENERS_EVENT_LISTENER];
-      var nativeRemoveAllListeners = proto[zoneSymbol(REMOVE_ALL_LISTENERS_EVENT_LISTENER)] = proto[REMOVE_ALL_LISTENERS_EVENT_LISTENER];
-      var nativePrependEventListener;
-      if (patchOptions && patchOptions.prependEventListenerFnName) {
-        nativePrependEventListener = proto[zoneSymbol(patchOptions.prependEventListenerFnName)] = proto[patchOptions.prependEventListenerFnName];
-      }
-      var customScheduleGlobal = function(task) {
-        if (taskData.isExisting) {
-          return;
-        }
-        return nativeAddEventListener.apply(taskData.target, [taskData.eventName, taskData.capture ? globalZoneAwareCaptureCallback : globalZoneAwareCallback, taskData.options]);
-      };
-      var customCancelGlobal = function(task) {
-        if (!task.isRemoved) {
-          var symbolEventNames = zoneSymbolEventNames[task.eventName];
-          var symbolEventName = void 0;
-          if (symbolEventNames) {
-            symbolEventName = symbolEventNames[task.capture ? TRUE_STR : FALSE_STR];
-          }
-          var existingTasks = symbolEventName && task.target[symbolEventName];
-          if (existingTasks) {
-            for (var i = 0; i < existingTasks.length; i++) {
-              var existingTask = existingTasks[i];
-              if (existingTask === task) {
-                existingTasks.splice(i, 1);
-                task.isRemoved = true;
-                if (existingTasks.length === 0) {
-                  task.allRemoved = true;
-                  task.target[symbolEventName] = null;
-                }
-                break;
-              }
-            }
-          }
-        }
-        if (!task.allRemoved) {
-          return;
-        }
-        return nativeRemoveEventListener.apply(task.target, [task.eventName, task.capture ? globalZoneAwareCaptureCallback : globalZoneAwareCallback, task.options]);
-      };
-      var customScheduleNonGlobal = function(task) {
-        return nativeAddEventListener.apply(taskData.target, [taskData.eventName, task.invoke, taskData.options]);
-      };
-      var customSchedulePrepend = function(task) {
-        return nativePrependEventListener.apply(taskData.target, [taskData.eventName, task.invoke, taskData.options]);
-      };
-      var customCancelNonGlobal = function(task) {
-        return nativeRemoveEventListener.apply(task.target, [task.eventName, task.invoke, task.options]);
-      };
-      var customSchedule = useGlobalCallback ? customScheduleGlobal : customScheduleNonGlobal;
-      var customCancel = useGlobalCallback ? customCancelGlobal : customCancelNonGlobal;
-      var compareTaskCallbackVsDelegate = function(task, delegate) {
-        var typeOfDelegate = typeof delegate;
-        if ((typeOfDelegate === FUNCTION_TYPE && task.callback === delegate) || (typeOfDelegate === OBJECT_TYPE && task.originalDelegate === delegate)) {
-          return true;
-        }
-        return false;
-      };
-      var compare = (patchOptions && patchOptions.compareTaskCallbackVsDelegate) ? patchOptions.compareTaskCallbackVsDelegate : compareTaskCallbackVsDelegate;
-      var makeAddListener = function(nativeListener, addSource, customScheduleFn, customCancelFn, returnTarget, prepend) {
-        if (returnTarget === void 0) {
-          returnTarget = false;
-        }
-        if (prepend === void 0) {
-          prepend = false;
-        }
-        return function() {
-          var target = this || _global;
-          var targetZone = Zone.current;
-          var delegate = arguments[1];
-          if (!delegate) {
-            return nativeListener.apply(this, arguments);
-          }
-          var isHandleEvent = false;
-          if (typeof delegate !== FUNCTION_TYPE) {
-            if (!delegate.handleEvent) {
-              return nativeListener.apply(this, arguments);
-            }
-            isHandleEvent = true;
-          }
-          if (validateHandler && !validateHandler(nativeListener, delegate, target, arguments)) {
-            return;
-          }
-          var eventName = arguments[0];
-          var options = arguments[2];
-          var capture;
-          var once = false;
-          if (options === undefined) {
-            capture = false;
-          } else if (options === true) {
-            capture = true;
-          } else if (options === false) {
-            capture = false;
-          } else {
-            capture = options ? !!options.capture : false;
-            once = options ? !!options.once : false;
-          }
-          var zone = Zone.current;
-          var symbolEventNames = zoneSymbolEventNames[eventName];
-          var symbolEventName;
-          if (!symbolEventNames) {
-            var falseEventName = eventName + FALSE_STR;
-            var trueEventName = eventName + TRUE_STR;
-            var symbol = ZONE_SYMBOL_PREFIX + falseEventName;
-            var symbolCapture = ZONE_SYMBOL_PREFIX + trueEventName;
-            zoneSymbolEventNames[eventName] = {};
-            zoneSymbolEventNames[eventName][FALSE_STR] = symbol;
-            zoneSymbolEventNames[eventName][TRUE_STR] = symbolCapture;
-            symbolEventName = capture ? symbolCapture : symbol;
-          } else {
-            symbolEventName = symbolEventNames[capture ? TRUE_STR : FALSE_STR];
-          }
-          var existingTasks = target[symbolEventName];
-          var isExisting = false;
-          if (existingTasks) {
-            isExisting = true;
-            if (checkDuplicate) {
-              for (var i = 0; i < existingTasks.length; i++) {
-                if (compare(existingTasks[i], delegate)) {
-                  return;
-                }
-              }
-            }
-          } else {
-            existingTasks = target[symbolEventName] = [];
-          }
-          var source;
-          var constructorName = target.constructor[CONSTRUCTOR_NAME];
-          var targetSource = globalSources[constructorName];
-          if (targetSource) {
-            source = targetSource[eventName];
-          }
-          if (!source) {
-            source = constructorName + addSource + eventName;
-          }
-          taskData.options = options;
-          if (once) {
-            taskData.options.once = false;
-          }
-          taskData.target = target;
-          taskData.capture = capture;
-          taskData.eventName = eventName;
-          taskData.isExisting = isExisting;
-          var data = useGlobalCallback ? OPTIMIZED_ZONE_EVENT_TASK_DATA : null;
-          var task = zone.scheduleEventTask(source, delegate, data, customScheduleFn, customCancelFn);
-          if (once) {
-            options.once = true;
-          }
-          task.options = options;
-          task.target = target;
-          task.capture = capture;
-          task.eventName = eventName;
-          if (isHandleEvent) {
-            task.originalDelegate = delegate;
-          }
-          if (!prepend) {
-            existingTasks.push(task);
-          } else {
-            existingTasks.unshift(task);
-          }
-          if (returnTarget) {
-            return target;
-          }
-        };
-      };
-      proto[ADD_EVENT_LISTENER] = makeAddListener(nativeAddEventListener, ADD_EVENT_LISTENER_SOURCE, customSchedule, customCancel, returnTarget);
-      if (nativePrependEventListener) {
-        proto[PREPEND_EVENT_LISTENER] = makeAddListener(nativePrependEventListener, PREPEND_EVENT_LISTENER_SOURCE, customSchedulePrepend, customCancel, returnTarget, true);
-      }
-      proto[REMOVE_EVENT_LISTENER] = function() {
-        var target = this || _global;
-        var eventName = arguments[0];
-        var options = arguments[2];
-        var capture;
-        if (options === undefined) {
-          capture = false;
-        } else if (options === true) {
-          capture = true;
-        } else if (options === false) {
-          capture = false;
-        } else {
-          capture = options ? !!options.capture : false;
-        }
-        var delegate = arguments[1];
-        if (!delegate) {
-          return nativeRemoveEventListener.apply(this, arguments);
-        }
-        if (validateHandler && !validateHandler(nativeRemoveEventListener, delegate, target, arguments)) {
-          return;
-        }
-        var symbolEventNames = zoneSymbolEventNames[eventName];
-        var symbolEventName;
-        if (symbolEventNames) {
-          symbolEventName = symbolEventNames[capture ? TRUE_STR : FALSE_STR];
-        }
-        var existingTasks = symbolEventName && target[symbolEventName];
-        if (existingTasks) {
-          for (var i = 0; i < existingTasks.length; i++) {
-            var existingTask = existingTasks[i];
-            var typeOfDelegate = typeof delegate;
-            if (compare(existingTask, delegate)) {
-              existingTasks.splice(i, 1);
-              existingTask.isRemoved = true;
-              if (existingTasks.length === 0) {
-                existingTask.allRemoved = true;
-                target[symbolEventName] = null;
-              }
-              existingTask.zone.cancelTask(existingTask);
-              return;
-            }
-          }
-        }
-      };
-      proto[LISTENERS_EVENT_LISTENER] = function() {
-        var target = this || _global;
-        var eventName = arguments[0];
-        var listeners = [];
-        var tasks = findEventTasks(target, eventName);
-        for (var i = 0; i < tasks.length; i++) {
-          var task = tasks[i];
-          var delegate = task.originalDelegate ? task.originalDelegate : task.callback;
-          listeners.push(delegate);
-        }
-        return listeners;
-      };
-      proto[REMOVE_ALL_LISTENERS_EVENT_LISTENER] = function() {
-        var target = this || _global;
-        var eventName = arguments[0];
-        if (!eventName) {
-          var keys = Object.keys(target);
-          for (var i = 0; i < keys.length; i++) {
-            var prop = keys[i];
-            var match = EVENT_NAME_SYMBOL_REGX.exec(prop);
-            var evtName = match && match[1];
-            if (evtName && evtName !== 'removeListener') {
-              this[REMOVE_ALL_LISTENERS_EVENT_LISTENER].apply(this, [evtName]);
-            }
-          }
-          this[REMOVE_ALL_LISTENERS_EVENT_LISTENER].apply(this, ['removeListener']);
-        } else {
-          var symbolEventNames = zoneSymbolEventNames[eventName];
-          if (symbolEventNames) {
-            var symbolEventName = symbolEventNames[FALSE_STR];
-            var symbolCaptureEventName = symbolEventNames[TRUE_STR];
-            var tasks = target[symbolEventName];
-            var captureTasks = target[symbolCaptureEventName];
-            if (tasks) {
-              var removeTasks = tasks.slice();
-              for (var i = 0; i < removeTasks.length; i++) {
-                var task = removeTasks[i];
-                var delegate = task.originalDelegate ? task.originalDelegate : task.callback;
-                this[REMOVE_EVENT_LISTENER].apply(this, [eventName, delegate, task.options]);
-              }
-            }
-            if (captureTasks) {
-              var removeTasks = captureTasks.slice();
-              for (var i = 0; i < removeTasks.length; i++) {
-                var task = removeTasks[i];
-                var delegate = task.originalDelegate ? task.originalDelegate : task.callback;
-                this[REMOVE_EVENT_LISTENER].apply(this, [eventName, delegate, task.options]);
-              }
-            }
-          }
-        }
-      };
-      attachOriginToPatched(proto[ADD_EVENT_LISTENER], nativeAddEventListener);
-      attachOriginToPatched(proto[REMOVE_EVENT_LISTENER], nativeRemoveEventListener);
-      if (nativeRemoveAllListeners) {
-        attachOriginToPatched(proto[REMOVE_ALL_LISTENERS_EVENT_LISTENER], nativeRemoveAllListeners);
-      }
-      if (nativeListeners) {
-        attachOriginToPatched(proto[LISTENERS_EVENT_LISTENER], nativeListeners);
-      }
-      return true;
-    }
-    var results = [];
-    for (var i = 0; i < apis.length; i++) {
-      results[i] = patchEventTargetMethods(apis[i], patchOptions);
-    }
-    return results;
-  }
-  function findEventTasks(target, eventName) {
-    var foundTasks = [];
-    for (var prop in target) {
-      var match = EVENT_NAME_SYMBOL_REGX.exec(prop);
-      var evtName = match && match[1];
-      if (evtName && (!eventName || evtName === eventName)) {
-        var tasks = target[prop];
-        if (tasks) {
-          for (var i = 0; i < tasks.length; i++) {
-            foundTasks.push(tasks[i]);
-          }
-        }
-      }
-    }
-    return foundTasks;
-  }
-  function patchTimer(window, setName, cancelName, nameSuffix) {
-    var setNative = null;
-    var clearNative = null;
-    setName += nameSuffix;
-    cancelName += nameSuffix;
-    var tasksByHandleId = {};
-    function scheduleTask(task) {
-      var data = task.data;
-      function timer() {
-        try {
-          task.invoke.apply(this, arguments);
-        } finally {
-          if (typeof data.handleId === 'number') {
-            delete tasksByHandleId[data.handleId];
-          }
-        }
-      }
-      data.args[0] = timer;
-      data.handleId = setNative.apply(window, data.args);
-      if (typeof data.handleId === 'number') {
-        tasksByHandleId[data.handleId] = task;
-      }
-      return task;
-    }
-    function clearTask(task) {
-      if (typeof task.data.handleId === 'number') {
-        delete tasksByHandleId[task.data.handleId];
-      }
-      return clearNative(task.data.handleId);
-    }
-    setNative = patchMethod(window, setName, function(delegate) {
-      return function(self, args) {
-        if (typeof args[0] === 'function') {
-          var zone = Zone.current;
-          var options = {
-            handleId: null,
-            isPeriodic: nameSuffix === 'Interval',
-            delay: (nameSuffix === 'Timeout' || nameSuffix === 'Interval') ? args[1] || 0 : null,
-            args: args
-          };
-          var task = zone.scheduleMacroTask(setName, args[0], options, scheduleTask, clearTask);
-          if (!task) {
-            return task;
-          }
-          var handle = task.data.handleId;
-          if (handle && handle.ref && handle.unref && typeof handle.ref === 'function' && typeof handle.unref === 'function') {
-            task.ref = handle.ref.bind(handle);
-            task.unref = handle.unref.bind(handle);
-          }
-          return task;
-        } else {
-          return delegate.apply(window, args);
-        }
-      };
-    });
-    clearNative = patchMethod(window, cancelName, function(delegate) {
-      return function(self, args) {
-        var task = typeof args[0] === 'number' ? tasksByHandleId[args[0]] : args[0];
-        if (task && typeof task.type === 'string') {
-          if (task.state !== 'notScheduled' && (task.cancelFn && task.data.isPeriodic || task.runCount === 0)) {
-            task.zone.cancelTask(task);
-          }
-        } else {
-          delegate.apply(window, args);
-        }
-      };
-    });
-  }
-  var _defineProperty = Object[zoneSymbol('defineProperty')] = Object.defineProperty;
-  var _getOwnPropertyDescriptor = Object[zoneSymbol('getOwnPropertyDescriptor')] = Object.getOwnPropertyDescriptor;
-  var _create = Object.create;
-  var unconfigurablesKey = zoneSymbol('unconfigurables');
-  function propertyPatch() {
-    Object.defineProperty = function(obj, prop, desc) {
-      if (isUnconfigurable(obj, prop)) {
-        throw new TypeError('Cannot assign to read only property \'' + prop + '\' of ' + obj);
-      }
-      var originalConfigurableFlag = desc.configurable;
-      if (prop !== 'prototype') {
-        desc = rewriteDescriptor(obj, prop, desc);
-      }
-      return _tryDefineProperty(obj, prop, desc, originalConfigurableFlag);
-    };
-    Object.defineProperties = function(obj, props) {
-      Object.keys(props).forEach(function(prop) {
-        Object.defineProperty(obj, prop, props[prop]);
-      });
-      return obj;
-    };
-    Object.create = function(obj, proto) {
-      if (typeof proto === 'object' && !Object.isFrozen(proto)) {
-        Object.keys(proto).forEach(function(prop) {
-          proto[prop] = rewriteDescriptor(obj, prop, proto[prop]);
-        });
-      }
-      return _create(obj, proto);
-    };
-    Object.getOwnPropertyDescriptor = function(obj, prop) {
-      var desc = _getOwnPropertyDescriptor(obj, prop);
-      if (isUnconfigurable(obj, prop)) {
-        desc.configurable = false;
-      }
-      return desc;
-    };
-  }
-  function _redefineProperty(obj, prop, desc) {
-    var originalConfigurableFlag = desc.configurable;
-    desc = rewriteDescriptor(obj, prop, desc);
-    return _tryDefineProperty(obj, prop, desc, originalConfigurableFlag);
-  }
-  function isUnconfigurable(obj, prop) {
-    return obj && obj[unconfigurablesKey] && obj[unconfigurablesKey][prop];
-  }
-  function rewriteDescriptor(obj, prop, desc) {
-    desc.configurable = true;
-    if (!desc.configurable) {
-      if (!obj[unconfigurablesKey]) {
-        _defineProperty(obj, unconfigurablesKey, {
-          writable: true,
-          value: {}
-        });
-      }
-      obj[unconfigurablesKey][prop] = true;
-    }
-    return desc;
-  }
-  function _tryDefineProperty(obj, prop, desc, originalConfigurableFlag) {
-    try {
-      return _defineProperty(obj, prop, desc);
-    } catch (error) {
-      if (desc.configurable) {
-        if (typeof originalConfigurableFlag == 'undefined') {
-          delete desc.configurable;
-        } else {
-          desc.configurable = originalConfigurableFlag;
-        }
-        try {
-          return _defineProperty(obj, prop, desc);
-        } catch (error) {
-          var descJson = null;
-          try {
-            descJson = JSON.stringify(desc);
-          } catch (error) {
-            descJson = descJson.toString();
-          }
-          console.log("Attempting to configure '" + prop + "' with descriptor '" + descJson + "' on object '" + obj + "' and got error, giving up: " + error);
-        }
-      } else {
-        throw error;
-      }
-    }
-  }
-  function apply(api, _global) {
-    var WS = _global.WebSocket;
-    if (!_global.EventTarget) {
-      patchEventTarget(api, _global, [WS.prototype]);
-    }
-    _global.WebSocket = function(a, b) {
-      var socket = arguments.length > 1 ? new WS(a, b) : new WS(a);
-      var proxySocket;
-      var proxySocketProto;
-      var onmessageDesc = Object.getOwnPropertyDescriptor(socket, 'onmessage');
-      if (onmessageDesc && onmessageDesc.configurable === false) {
-        proxySocket = Object.create(socket);
-        proxySocketProto = socket;
-        ['addEventListener', 'removeEventListener', 'send', 'close'].forEach(function(propName) {
-          proxySocket[propName] = function() {
-            return socket[propName].apply(socket, arguments);
-          };
-        });
-      } else {
-        proxySocket = socket;
-      }
-      patchOnProperties(proxySocket, ['close', 'error', 'message', 'open'], proxySocketProto);
-      return proxySocket;
-    };
-    for (var prop in WS) {
-      _global['WebSocket'][prop] = WS[prop];
-    }
-  }
-  var globalEventHandlersEventNames = ['abort', 'animationcancel', 'animationend', 'animationiteration', 'auxclick', 'beforeinput', 'blur', 'cancel', 'canplay', 'canplaythrough', 'change', 'compositionstart', 'compositionupdate', 'compositionend', 'cuechange', 'click', 'close', 'contextmenu', 'curechange', 'dblclick', 'drag', 'dragend', 'dragenter', 'dragexit', 'dragleave', 'dragover', 'drop', 'durationchange', 'emptied', 'ended', 'error', 'focus', 'focusin', 'focusout', 'gotpointercapture', 'input', 'invalid', 'keydown', 'keypress', 'keyup', 'load', 'loadstart', 'loadeddata', 'loadedmetadata', 'lostpointercapture', 'mousedown', 'mouseenter', 'mouseleave', 'mousemove', 'mouseout', 'mouseover', 'mouseup', 'mousewheel', 'pause', 'play', 'playing', 'pointercancel', 'pointerdown', 'pointerenter', 'pointerleave', 'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockerchange', 'pointerlockerror', 'mozpointerlockerror', 'webkitpointerlockerror', 'pointermove', 'pointout', 'pointerover', 'pointerup', 'progress', 'ratechange', 'reset', 'resize', 'scroll', 'seeked', 'seeking', 'select', 'selectionchange', 'selectstart', 'show', 'sort', 'stalled', 'submit', 'suspend', 'timeupdate', 'volumechange', 'touchcancel', 'touchmove', 'touchstart', 'transitioncancel', 'transitionend', 'waiting', 'wheel'];
-  var documentEventNames = ['afterscriptexecute', 'beforescriptexecute', 'DOMContentLoaded', 'fullscreenchange', 'mozfullscreenchange', 'webkitfullscreenchange', 'msfullscreenchange', 'fullscreenerror', 'mozfullscreenerror', 'webkitfullscreenerror', 'msfullscreenerror', 'readystatechange'];
-  var windowEventNames = ['absolutedeviceorientation', 'afterinput', 'afterprint', 'appinstalled', 'beforeinstallprompt', 'beforeprint', 'beforeunload', 'devicelight', 'devicemotion', 'deviceorientation', 'deviceorientationabsolute', 'deviceproximity', 'hashchange', 'languagechange', 'message', 'mozbeforepaint', 'offline', 'online', 'paint', 'pageshow', 'pagehide', 'popstate', 'rejectionhandled', 'storage', 'unhandledrejection', 'unload', 'userproximity', 'vrdisplyconnected', 'vrdisplaydisconnected', 'vrdisplaypresentchange'];
-  var htmlElementEventNames = ['beforecopy', 'beforecut', 'beforepaste', 'copy', 'cut', 'paste', 'dragstart', 'loadend', 'animationstart', 'search', 'transitionrun', 'transitionstart', 'webkitanimationend', 'webkitanimationiteration', 'webkitanimationstart', 'webkittransitionend'];
-  var mediaElementEventNames = ['encrypted', 'waitingforkey', 'msneedkey', 'mozinterruptbegin', 'mozinterruptend'];
-  var ieElementEventNames = ['activate', 'afterupdate', 'ariarequest', 'beforeactivate', 'beforedeactivate', 'beforeeditfocus', 'beforeupdate', 'cellchange', 'controlselect', 'dataavailable', 'datasetchanged', 'datasetcomplete', 'errorupdate', 'filterchange', 'layoutcomplete', 'losecapture', 'move', 'moveend', 'movestart', 'propertychange', 'resizeend', 'resizestart', 'rowenter', 'rowexit', 'rowsdelete', 'rowsinserted', 'command', 'compassneedscalibration', 'deactivate', 'help', 'mscontentzoom', 'msmanipulationstatechanged', 'msgesturechange', 'msgesturedoubletap', 'msgestureend', 'msgesturehold', 'msgesturestart', 'msgesturetap', 'msgotpointercapture', 'msinertiastart', 'mslostpointercapture', 'mspointercancel', 'mspointerdown', 'mspointerenter', 'mspointerhover', 'mspointerleave', 'mspointermove', 'mspointerout', 'mspointerover', 'mspointerup', 'pointerout', 'mssitemodejumplistitemremoved', 'msthumbnailclick', 'stop', 'storagecommit'];
-  var webglEventNames = ['webglcontextrestored', 'webglcontextlost', 'webglcontextcreationerror'];
-  var formEventNames = ['autocomplete', 'autocompleteerror'];
-  var detailEventNames = ['toggle'];
-  var frameEventNames = ['load'];
-  var frameSetEventNames = ['blur', 'error', 'focus', 'load', 'resize', 'scroll'];
-  var marqueeEventNames = ['bounce', 'finish', 'start'];
-  var XMLHttpRequestEventNames = ['loadstart', 'progress', 'abort', 'error', 'load', 'progress', 'timeout', 'loadend', 'readystatechange'];
-  var IDBIndexEventNames = ['upgradeneeded', 'complete', 'abort', 'success', 'error', 'blocked', 'versionchange', 'close'];
-  var websocketEventNames = ['close', 'error', 'open', 'message'];
-  var eventNames = globalEventHandlersEventNames.concat(webglEventNames, formEventNames, detailEventNames, documentEventNames, windowEventNames, htmlElementEventNames, ieElementEventNames);
-  function propertyDescriptorPatch(api, _global) {
-    if (isNode && !isMix) {
-      return;
-    }
-    var supportsWebSocket = typeof WebSocket !== 'undefined';
-    if (canPatchViaPropertyDescriptor()) {
-      if (isBrowser) {
-        patchOnProperties(window, eventNames, Object.getPrototypeOf(window));
-        patchOnProperties(Document.prototype, eventNames);
-        if (typeof window['SVGElement'] !== 'undefined') {
-          patchOnProperties(window['SVGElement'].prototype, eventNames);
-        }
-        patchOnProperties(Element.prototype, eventNames);
-        patchOnProperties(HTMLElement.prototype, eventNames);
-        patchOnProperties(HTMLMediaElement.prototype, mediaElementEventNames);
-        patchOnProperties(HTMLFrameSetElement.prototype, windowEventNames.concat(frameSetEventNames));
-        patchOnProperties(HTMLBodyElement.prototype, windowEventNames.concat(frameSetEventNames));
-        patchOnProperties(HTMLFrameElement.prototype, frameEventNames);
-        patchOnProperties(HTMLIFrameElement.prototype, frameEventNames);
-        var HTMLMarqueeElement_1 = window['HTMLMarqueeElement'];
-        if (HTMLMarqueeElement_1) {
-          patchOnProperties(HTMLMarqueeElement_1.prototype, marqueeEventNames);
-        }
-      }
-      patchOnProperties(XMLHttpRequest.prototype, XMLHttpRequestEventNames);
-      var XMLHttpRequestEventTarget = _global['XMLHttpRequestEventTarget'];
-      if (XMLHttpRequestEventTarget) {
-        patchOnProperties(XMLHttpRequestEventTarget && XMLHttpRequestEventTarget.prototype, XMLHttpRequestEventNames);
-      }
-      if (typeof IDBIndex !== 'undefined') {
-        patchOnProperties(IDBIndex.prototype, IDBIndexEventNames);
-        patchOnProperties(IDBRequest.prototype, IDBIndexEventNames);
-        patchOnProperties(IDBOpenDBRequest.prototype, IDBIndexEventNames);
-        patchOnProperties(IDBDatabase.prototype, IDBIndexEventNames);
-        patchOnProperties(IDBTransaction.prototype, IDBIndexEventNames);
-        patchOnProperties(IDBCursor.prototype, IDBIndexEventNames);
-      }
-      if (supportsWebSocket) {
-        patchOnProperties(WebSocket.prototype, websocketEventNames);
-      }
-    } else {
-      patchViaCapturingAllTheEvents();
-      patchClass('XMLHttpRequest');
-      if (supportsWebSocket) {
-        apply(api, _global);
-      }
-    }
-  }
-  function canPatchViaPropertyDescriptor() {
-    if ((isBrowser || isMix) && !Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'onclick') && typeof Element !== 'undefined') {
-      var desc = Object.getOwnPropertyDescriptor(Element.prototype, 'onclick');
-      if (desc && !desc.configurable)
-        return false;
-    }
-    var xhrDesc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'onreadystatechange');
-    if (xhrDesc) {
-      Object.defineProperty(XMLHttpRequest.prototype, 'onreadystatechange', {
-        enumerable: true,
-        configurable: true,
-        get: function() {
-          return true;
-        }
-      });
-      var req = new XMLHttpRequest();
-      var result = !!req.onreadystatechange;
-      Object.defineProperty(XMLHttpRequest.prototype, 'onreadystatechange', xhrDesc || {});
-      return result;
-    } else {
-      Object.defineProperty(XMLHttpRequest.prototype, 'onreadystatechange', {
-        enumerable: true,
-        configurable: true,
-        get: function() {
-          return this[zoneSymbol('fakeonreadystatechange')];
-        },
-        set: function(value) {
-          this[zoneSymbol('fakeonreadystatechange')] = value;
-        }
-      });
-      var req = new XMLHttpRequest();
-      var detectFunc = function() {};
-      req.onreadystatechange = detectFunc;
-      var result = req[zoneSymbol('fakeonreadystatechange')] === detectFunc;
-      req.onreadystatechange = null;
-      return result;
-    }
-  }
-  var unboundKey = zoneSymbol('unbound');
-  function patchViaCapturingAllTheEvents() {
-    var _loop_1 = function(i) {
-      var property = eventNames[i];
-      var onproperty = 'on' + property;
-      self.addEventListener(property, function(event) {
-        var elt = event.target,
-            bound,
-            source;
-        if (elt) {
-          source = elt.constructor['name'] + '.' + onproperty;
-        } else {
-          source = 'unknown.' + onproperty;
-        }
-        while (elt) {
-          if (elt[onproperty] && !elt[onproperty][unboundKey]) {
-            bound = Zone.current.wrap(elt[onproperty], source);
-            bound[unboundKey] = elt[onproperty];
-            elt[onproperty] = bound;
-          }
-          elt = elt.parentElement;
-        }
-      }, true);
-    };
-    for (var i = 0; i < eventNames.length; i++) {
-      _loop_1(i);
-    }
-  }
-  function eventTargetPatch(_global, api) {
-    var WTF_ISSUE_555 = 'Anchor,Area,Audio,BR,Base,BaseFont,Body,Button,Canvas,Content,DList,Directory,Div,Embed,FieldSet,Font,Form,Frame,FrameSet,HR,Head,Heading,Html,IFrame,Image,Input,Keygen,LI,Label,Legend,Link,Map,Marquee,Media,Menu,Meta,Meter,Mod,OList,Object,OptGroup,Option,Output,Paragraph,Pre,Progress,Quote,Script,Select,Source,Span,Style,TableCaption,TableCell,TableCol,Table,TableRow,TableSection,TextArea,Title,Track,UList,Unknown,Video';
-    var NO_EVENT_TARGET = 'ApplicationCache,EventSource,FileReader,InputMethodContext,MediaController,MessagePort,Node,Performance,SVGElementInstance,SharedWorker,TextTrack,TextTrackCue,TextTrackList,WebKitNamedFlow,Window,Worker,WorkerGlobalScope,XMLHttpRequest,XMLHttpRequestEventTarget,XMLHttpRequestUpload,IDBRequest,IDBOpenDBRequest,IDBDatabase,IDBTransaction,IDBCursor,DBIndex,WebSocket'.split(',');
-    var EVENT_TARGET = 'EventTarget';
-    var apis = [];
-    var isWtf = _global['wtf'];
-    var WTF_ISSUE_555_ARRAY = WTF_ISSUE_555.split(',');
-    if (isWtf) {
-      apis = WTF_ISSUE_555_ARRAY.map(function(v) {
-        return 'HTML' + v + 'Element';
-      }).concat(NO_EVENT_TARGET);
-    } else if (_global[EVENT_TARGET]) {
-      apis.push(EVENT_TARGET);
-    } else {
-      apis = NO_EVENT_TARGET;
-    }
-    var isDisableIECheck = _global['__Zone_disable_IE_check'] || false;
-    var isEnableCrossContextCheck = _global['__Zone_enable_cross_context_check'] || false;
-    var ieOrEdge = isIEOrEdge();
-    var ADD_EVENT_LISTENER_SOURCE = '.addEventListener:';
-    var FUNCTION_WRAPPER = '[object FunctionWrapper]';
-    var BROWSER_TOOLS = 'function __BROWSERTOOLS_CONSOLE_SAFEFUNC() { [native code] }';
-    for (var i = 0; i < eventNames.length; i++) {
-      var eventName = eventNames[i];
-      var falseEventName = eventName + FALSE_STR;
-      var trueEventName = eventName + TRUE_STR;
-      var symbol = ZONE_SYMBOL_PREFIX + falseEventName;
-      var symbolCapture = ZONE_SYMBOL_PREFIX + trueEventName;
-      zoneSymbolEventNames[eventName] = {};
-      zoneSymbolEventNames[eventName][FALSE_STR] = symbol;
-      zoneSymbolEventNames[eventName][TRUE_STR] = symbolCapture;
-    }
-    for (var i = 0; i < WTF_ISSUE_555.length; i++) {
-      var target = WTF_ISSUE_555_ARRAY[i];
-      var targets = globalSources[target] = {};
-      for (var j = 0; j < eventNames.length; j++) {
-        var eventName = eventNames[j];
-        targets[eventName] = target + ADD_EVENT_LISTENER_SOURCE + eventName;
-      }
-    }
-    var checkIEAndCrossContext = function(nativeDelegate, delegate, target, args) {
-      if (!isDisableIECheck && ieOrEdge) {
-        if (isEnableCrossContextCheck) {
-          try {
-            var testString = delegate.toString();
-            if ((testString === FUNCTION_WRAPPER || testString == BROWSER_TOOLS)) {
-              nativeDelegate.apply(target, args);
-              return false;
-            }
-          } catch (error) {
-            nativeDelegate.apply(target, args);
-            return false;
-          }
-        } else {
-          var testString = delegate.toString();
-          if ((testString === FUNCTION_WRAPPER || testString == BROWSER_TOOLS)) {
-            nativeDelegate.apply(target, args);
-            return false;
-          }
-        }
-      } else if (isEnableCrossContextCheck) {
-        try {
-          delegate.toString();
-        } catch (error) {
-          nativeDelegate.apply(target, args);
-          return false;
-        }
-      }
-      return true;
-    };
-    var apiTypes = [];
-    for (var i = 0; i < apis.length; i++) {
-      var type = _global[apis[i]];
-      apiTypes.push(type && type.prototype);
-    }
-    patchEventTarget(_global, apiTypes, {validateHandler: checkIEAndCrossContext});
-    api.patchEventTarget = patchEventTarget;
-    return true;
-  }
-  function registerElementPatch(_global) {
-    if ((!isBrowser && !isMix) || !('registerElement' in _global.document)) {
-      return;
-    }
-    var _registerElement = document.registerElement;
-    var callbacks = ['createdCallback', 'attachedCallback', 'detachedCallback', 'attributeChangedCallback'];
-    document.registerElement = function(name, opts) {
-      if (opts && opts.prototype) {
-        callbacks.forEach(function(callback) {
-          var source = 'Document.registerElement::' + callback;
-          if (opts.prototype.hasOwnProperty(callback)) {
-            var descriptor = Object.getOwnPropertyDescriptor(opts.prototype, callback);
-            if (descriptor && descriptor.value) {
-              descriptor.value = Zone.current.wrap(descriptor.value, source);
-              _redefineProperty(opts.prototype, callback, descriptor);
-            } else {
-              opts.prototype[callback] = Zone.current.wrap(opts.prototype[callback], source);
-            }
-          } else if (opts.prototype[callback]) {
-            opts.prototype[callback] = Zone.current.wrap(opts.prototype[callback], source);
-          }
-        });
-      }
-      return _registerElement.apply(document, [name, opts]);
-    };
-    attachOriginToPatched(document.registerElement, _registerElement);
-  }
-  Zone.__load_patch('timers', function(global, Zone, api) {
-    var set = 'set';
-    var clear = 'clear';
-    patchTimer(global, set, clear, 'Timeout');
-    patchTimer(global, set, clear, 'Interval');
-    patchTimer(global, set, clear, 'Immediate');
-    patchTimer(global, 'request', 'cancel', 'AnimationFrame');
-    patchTimer(global, 'mozRequest', 'mozCancel', 'AnimationFrame');
-    patchTimer(global, 'webkitRequest', 'webkitCancel', 'AnimationFrame');
-  });
-  Zone.__load_patch('blocking', function(global, Zone, api) {
-    var blockingMethods = ['alert', 'prompt', 'confirm'];
-    for (var i = 0; i < blockingMethods.length; i++) {
-      var name_1 = blockingMethods[i];
-      patchMethod(global, name_1, function(delegate, symbol, name) {
-        return function(s, args) {
-          return Zone.current.run(delegate, global, args, name);
-        };
-      });
-    }
-  });
-  Zone.__load_patch('EventTarget', function(global, Zone, api) {
-    eventTargetPatch(global, api);
-    var XMLHttpRequestEventTarget = global['XMLHttpRequestEventTarget'];
-    if (XMLHttpRequestEventTarget && XMLHttpRequestEventTarget.prototype) {
-      api.patchEventTarget(global, [XMLHttpRequestEventTarget.prototype]);
-    }
-    patchClass('MutationObserver');
-    patchClass('WebKitMutationObserver');
-    patchClass('FileReader');
-  });
-  Zone.__load_patch('on_property', function(global, Zone, api) {
-    propertyDescriptorPatch(api, global);
-    propertyPatch();
-    registerElementPatch(global);
-  });
-  Zone.__load_patch('canvas', function(global, Zone, api) {
-    var HTMLCanvasElement = global['HTMLCanvasElement'];
-    if (typeof HTMLCanvasElement !== 'undefined' && HTMLCanvasElement.prototype && HTMLCanvasElement.prototype.toBlob) {
-      patchMacroTask(HTMLCanvasElement.prototype, 'toBlob', function(self, args) {
-        return {
-          name: 'HTMLCanvasElement.toBlob',
-          target: self,
-          callbackIndex: 0,
-          args: args
-        };
-      });
-    }
-  });
-  Zone.__load_patch('XHR', function(global, Zone, api) {
-    patchXHR(global);
-    var XHR_TASK = zoneSymbol('xhrTask');
-    var XHR_SYNC = zoneSymbol('xhrSync');
-    var XHR_LISTENER = zoneSymbol('xhrListener');
-    var XHR_SCHEDULED = zoneSymbol('xhrScheduled');
-    function patchXHR(window) {
-      function findPendingTask(target) {
-        var pendingTask = target[XHR_TASK];
-        return pendingTask;
-      }
-      function scheduleTask(task) {
-        XMLHttpRequest[XHR_SCHEDULED] = false;
-        var data = task.data;
-        var listener = data.target[XHR_LISTENER];
-        var oriAddListener = data.target[zoneSymbol('addEventListener')];
-        var oriRemoveListener = data.target[zoneSymbol('removeEventListener')];
-        if (listener) {
-          oriRemoveListener.apply(data.target, ['readystatechange', listener]);
-        }
-        var newListener = data.target[XHR_LISTENER] = function() {
-          if (data.target.readyState === data.target.DONE) {
-            if (!data.aborted && XMLHttpRequest[XHR_SCHEDULED] && task.state === 'scheduled') {
-              task.invoke();
-            }
-          }
-        };
-        oriAddListener.apply(data.target, ['readystatechange', newListener]);
-        var storedTask = data.target[XHR_TASK];
-        if (!storedTask) {
-          data.target[XHR_TASK] = task;
-        }
-        sendNative.apply(data.target, data.args);
-        XMLHttpRequest[XHR_SCHEDULED] = true;
-        return task;
-      }
-      function placeholderCallback() {}
-      function clearTask(task) {
-        var data = task.data;
-        data.aborted = true;
-        return abortNative.apply(data.target, data.args);
-      }
-      var openNative = patchMethod(window.XMLHttpRequest.prototype, 'open', function() {
-        return function(self, args) {
-          self[XHR_SYNC] = args[2] == false;
-          return openNative.apply(self, args);
-        };
-      });
-      var sendNative = patchMethod(window.XMLHttpRequest.prototype, 'send', function() {
-        return function(self, args) {
-          var zone = Zone.current;
-          if (self[XHR_SYNC]) {
-            return sendNative.apply(self, args);
-          } else {
-            var options = {
-              target: self,
-              isPeriodic: false,
-              delay: null,
-              args: args,
-              aborted: false
-            };
-            return zone.scheduleMacroTask('XMLHttpRequest.send', placeholderCallback, options, scheduleTask, clearTask);
-          }
-        };
-      });
-      var abortNative = patchMethod(window.XMLHttpRequest.prototype, 'abort', function(delegate) {
-        return function(self, args) {
-          var task = findPendingTask(self);
-          if (task && typeof task.type == 'string') {
-            if (task.cancelFn == null || (task.data && task.data.aborted)) {
-              return;
-            }
-            task.zone.cancelTask(task);
-          }
-        };
-      });
-    }
-  });
-  Zone.__load_patch('geolocation', function(global, Zone, api) {
-    if (global['navigator'] && global['navigator'].geolocation) {
-      patchPrototype(global['navigator'].geolocation, ['getCurrentPosition', 'watchPosition']);
-    }
-  });
-  Zone.__load_patch('PromiseRejectionEvent', function(global, Zone, api) {
-    function findPromiseRejectionHandler(evtName) {
-      return function(e) {
-        var eventTasks = findEventTasks(global, evtName);
-        eventTasks.forEach(function(eventTask) {
-          var PromiseRejectionEvent = global['PromiseRejectionEvent'];
-          if (PromiseRejectionEvent) {
-            var evt = new PromiseRejectionEvent(evtName, {
-              promise: e.promise,
-              reason: e.rejection
-            });
-            eventTask.invoke(evt);
-          }
-        });
-      };
-    }
-    if (global['PromiseRejectionEvent']) {
-      Zone[zoneSymbol('unhandledPromiseRejectionHandler')] = findPromiseRejectionHandler('unhandledrejection');
-      Zone[zoneSymbol('rejectionHandledHandler')] = findPromiseRejectionHandler('rejectionhandled');
-    }
-  });
-  Zone.__load_patch('util', function(global, Zone, api) {
-    api.patchOnProperties = patchOnProperties;
-    api.patchMethod = patchMethod;
-  });
-})));
-
-})();
-System.registerDynamic("node_modules/reflect-metadata/Reflect.js", [], false, function ($__require, $__exports, $__module) {
-    var _retrieveGlobal = System.get("@@global-helpers").prepareGlobal($__module.id, null, null);
-
-    (function ($__global) {
-        var Reflect = $__global["Reflect"];
-        /*! *****************************************************************************
-        Copyright (C) Microsoft. All rights reserved.
-        Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-        this file except in compliance with the License. You may obtain a copy of the
-        License at http://www.apache.org/licenses/LICENSE-2.0
-        
-        THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-        KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
-        WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-        MERCHANTABLITY OR NON-INFRINGEMENT.
-        
-        See the Apache Version 2.0 License for specific language governing permissions
-        and limitations under the License.
-        ***************************************************************************** */
-        var Reflect;
-        (function (Reflect) {
-            "use strict";
-
-            var hasOwn = Object.prototype.hasOwnProperty;
-            // feature test for Symbol support
-            var supportsSymbol = typeof Symbol === "function";
-            var toPrimitiveSymbol = supportsSymbol && typeof Symbol.toPrimitive !== "undefined" ? Symbol.toPrimitive : "@@toPrimitive";
-            var iteratorSymbol = supportsSymbol && typeof Symbol.iterator !== "undefined" ? Symbol.iterator : "@@iterator";
-            var HashMap;
-            (function (HashMap) {
-                var supportsCreate = typeof Object.create === "function"; // feature test for Object.create support
-                var supportsProto = { __proto__: [] } instanceof Array; // feature test for __proto__ support
-                var downLevel = !supportsCreate && !supportsProto;
-                // create an object in dictionary mode (a.k.a. "slow" mode in v8)
-                HashMap.create = supportsCreate ? function () {
-                    return MakeDictionary(Object.create(null));
-                } : supportsProto ? function () {
-                    return MakeDictionary({ __proto__: null });
-                } : function () {
-                    return MakeDictionary({});
-                };
-                HashMap.has = downLevel ? function (map, key) {
-                    return hasOwn.call(map, key);
-                } : function (map, key) {
-                    return key in map;
-                };
-                HashMap.get = downLevel ? function (map, key) {
-                    return hasOwn.call(map, key) ? map[key] : undefined;
-                } : function (map, key) {
-                    return map[key];
-                };
-            })(HashMap || (HashMap = {}));
-            // Load global or shim versions of Map, Set, and WeakMap
-            var functionPrototype = Object.getPrototypeOf(Function);
-            var usePolyfill = typeof process === "object" && process.env && process.env["REFLECT_METADATA_USE_MAP_POLYFILL"] === "true";
-            var _Map = !usePolyfill && typeof Map === "function" && typeof Map.prototype.entries === "function" ? Map : CreateMapPolyfill();
-            var _Set = !usePolyfill && typeof Set === "function" && typeof Set.prototype.entries === "function" ? Set : CreateSetPolyfill();
-            var _WeakMap = !usePolyfill && typeof WeakMap === "function" ? WeakMap : CreateWeakMapPolyfill();
-            // [[Metadata]] internal slot
-            // https://rbuckton.github.io/reflect-metadata/#ordinary-object-internal-methods-and-internal-slots
-            var Metadata = new _WeakMap();
-            /**
-              * Applies a set of decorators to a property of a target object.
-              * @param decorators An array of decorators.
-              * @param target The target object.
-              * @param propertyKey (Optional) The property key to decorate.
-              * @param attributes (Optional) The property descriptor for the target key.
-              * @remarks Decorators are applied in reverse order.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     Example = Reflect.decorate(decoratorsArray, Example);
-              *
-              *     // property (on constructor)
-              *     Reflect.decorate(decoratorsArray, Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     Reflect.decorate(decoratorsArray, Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     Object.defineProperty(Example, "staticMethod",
-              *         Reflect.decorate(decoratorsArray, Example, "staticMethod",
-              *             Object.getOwnPropertyDescriptor(Example, "staticMethod")));
-              *
-              *     // method (on prototype)
-              *     Object.defineProperty(Example.prototype, "method",
-              *         Reflect.decorate(decoratorsArray, Example.prototype, "method",
-              *             Object.getOwnPropertyDescriptor(Example.prototype, "method")));
-              *
-              */
-            function decorate(decorators, target, propertyKey, attributes) {
-                if (!IsUndefined(propertyKey)) {
-                    if (!IsArray(decorators)) throw new TypeError();
-                    if (!IsObject(target)) throw new TypeError();
-                    if (!IsObject(attributes) && !IsUndefined(attributes) && !IsNull(attributes)) throw new TypeError();
-                    if (IsNull(attributes)) attributes = undefined;
-                    propertyKey = ToPropertyKey(propertyKey);
-                    return DecorateProperty(decorators, target, propertyKey, attributes);
-                } else {
-                    if (!IsArray(decorators)) throw new TypeError();
-                    if (!IsConstructor(target)) throw new TypeError();
-                    return DecorateConstructor(decorators, target);
-                }
-            }
-            Reflect.decorate = decorate;
-            // 4.1.2 Reflect.metadata(metadataKey, metadataValue)
-            // https://rbuckton.github.io/reflect-metadata/#reflect.metadata
-            /**
-              * A default metadata decorator factory that can be used on a class, class member, or parameter.
-              * @param metadataKey The key for the metadata entry.
-              * @param metadataValue The value for the metadata entry.
-              * @returns A decorator function.
-              * @remarks
-              * If `metadataKey` is already defined for the target and target key, the
-              * metadataValue for that key will be overwritten.
-              * @example
-              *
-              *     // constructor
-              *     @Reflect.metadata(key, value)
-              *     class Example {
-              *     }
-              *
-              *     // property (on constructor, TypeScript only)
-              *     class Example {
-              *         @Reflect.metadata(key, value)
-              *         static staticProperty;
-              *     }
-              *
-              *     // property (on prototype, TypeScript only)
-              *     class Example {
-              *         @Reflect.metadata(key, value)
-              *         property;
-              *     }
-              *
-              *     // method (on constructor)
-              *     class Example {
-              *         @Reflect.metadata(key, value)
-              *         static staticMethod() { }
-              *     }
-              *
-              *     // method (on prototype)
-              *     class Example {
-              *         @Reflect.metadata(key, value)
-              *         method() { }
-              *     }
-              *
-              */
-            function metadata(metadataKey, metadataValue) {
-                function decorator(target, propertyKey) {
-                    if (!IsObject(target)) throw new TypeError();
-                    if (!IsUndefined(propertyKey) && !IsPropertyKey(propertyKey)) throw new TypeError();
-                    OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
-                }
-                return decorator;
-            }
-            Reflect.metadata = metadata;
-            /**
-              * Define a unique metadata entry on the target.
-              * @param metadataKey A key used to store and retrieve metadata.
-              * @param metadataValue A value that contains attached metadata.
-              * @param target The target object on which to define metadata.
-              * @param propertyKey (Optional) The property key for the target.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     Reflect.defineMetadata("custom:annotation", options, Example);
-              *
-              *     // property (on constructor)
-              *     Reflect.defineMetadata("custom:annotation", options, Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     Reflect.defineMetadata("custom:annotation", options, Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     Reflect.defineMetadata("custom:annotation", options, Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     Reflect.defineMetadata("custom:annotation", options, Example.prototype, "method");
-              *
-              *     // decorator factory as metadata-producing annotation.
-              *     function MyAnnotation(options): Decorator {
-              *         return (target, key?) => Reflect.defineMetadata("custom:annotation", options, target, key);
-              *     }
-              *
-              */
-            function defineMetadata(metadataKey, metadataValue, target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                return OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
-            }
-            Reflect.defineMetadata = defineMetadata;
-            /**
-              * Gets a value indicating whether the target object or its prototype chain has the provided metadata key defined.
-              * @param metadataKey A key used to store and retrieve metadata.
-              * @param target The target object on which the metadata is defined.
-              * @param propertyKey (Optional) The property key for the target.
-              * @returns `true` if the metadata key was defined on the target object or its prototype chain; otherwise, `false`.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     result = Reflect.hasMetadata("custom:annotation", Example);
-              *
-              *     // property (on constructor)
-              *     result = Reflect.hasMetadata("custom:annotation", Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     result = Reflect.hasMetadata("custom:annotation", Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     result = Reflect.hasMetadata("custom:annotation", Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     result = Reflect.hasMetadata("custom:annotation", Example.prototype, "method");
-              *
-              */
-            function hasMetadata(metadataKey, target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                return OrdinaryHasMetadata(metadataKey, target, propertyKey);
-            }
-            Reflect.hasMetadata = hasMetadata;
-            /**
-              * Gets a value indicating whether the target object has the provided metadata key defined.
-              * @param metadataKey A key used to store and retrieve metadata.
-              * @param target The target object on which the metadata is defined.
-              * @param propertyKey (Optional) The property key for the target.
-              * @returns `true` if the metadata key was defined on the target object; otherwise, `false`.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     result = Reflect.hasOwnMetadata("custom:annotation", Example);
-              *
-              *     // property (on constructor)
-              *     result = Reflect.hasOwnMetadata("custom:annotation", Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     result = Reflect.hasOwnMetadata("custom:annotation", Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     result = Reflect.hasOwnMetadata("custom:annotation", Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     result = Reflect.hasOwnMetadata("custom:annotation", Example.prototype, "method");
-              *
-              */
-            function hasOwnMetadata(metadataKey, target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                return OrdinaryHasOwnMetadata(metadataKey, target, propertyKey);
-            }
-            Reflect.hasOwnMetadata = hasOwnMetadata;
-            /**
-              * Gets the metadata value for the provided metadata key on the target object or its prototype chain.
-              * @param metadataKey A key used to store and retrieve metadata.
-              * @param target The target object on which the metadata is defined.
-              * @param propertyKey (Optional) The property key for the target.
-              * @returns The metadata value for the metadata key if found; otherwise, `undefined`.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     result = Reflect.getMetadata("custom:annotation", Example);
-              *
-              *     // property (on constructor)
-              *     result = Reflect.getMetadata("custom:annotation", Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     result = Reflect.getMetadata("custom:annotation", Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     result = Reflect.getMetadata("custom:annotation", Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     result = Reflect.getMetadata("custom:annotation", Example.prototype, "method");
-              *
-              */
-            function getMetadata(metadataKey, target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                return OrdinaryGetMetadata(metadataKey, target, propertyKey);
-            }
-            Reflect.getMetadata = getMetadata;
-            /**
-              * Gets the metadata value for the provided metadata key on the target object.
-              * @param metadataKey A key used to store and retrieve metadata.
-              * @param target The target object on which the metadata is defined.
-              * @param propertyKey (Optional) The property key for the target.
-              * @returns The metadata value for the metadata key if found; otherwise, `undefined`.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     result = Reflect.getOwnMetadata("custom:annotation", Example);
-              *
-              *     // property (on constructor)
-              *     result = Reflect.getOwnMetadata("custom:annotation", Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     result = Reflect.getOwnMetadata("custom:annotation", Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     result = Reflect.getOwnMetadata("custom:annotation", Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     result = Reflect.getOwnMetadata("custom:annotation", Example.prototype, "method");
-              *
-              */
-            function getOwnMetadata(metadataKey, target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                return OrdinaryGetOwnMetadata(metadataKey, target, propertyKey);
-            }
-            Reflect.getOwnMetadata = getOwnMetadata;
-            /**
-              * Gets the metadata keys defined on the target object or its prototype chain.
-              * @param target The target object on which the metadata is defined.
-              * @param propertyKey (Optional) The property key for the target.
-              * @returns An array of unique metadata keys.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     result = Reflect.getMetadataKeys(Example);
-              *
-              *     // property (on constructor)
-              *     result = Reflect.getMetadataKeys(Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     result = Reflect.getMetadataKeys(Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     result = Reflect.getMetadataKeys(Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     result = Reflect.getMetadataKeys(Example.prototype, "method");
-              *
-              */
-            function getMetadataKeys(target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                return OrdinaryMetadataKeys(target, propertyKey);
-            }
-            Reflect.getMetadataKeys = getMetadataKeys;
-            /**
-              * Gets the unique metadata keys defined on the target object.
-              * @param target The target object on which the metadata is defined.
-              * @param propertyKey (Optional) The property key for the target.
-              * @returns An array of unique metadata keys.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     result = Reflect.getOwnMetadataKeys(Example);
-              *
-              *     // property (on constructor)
-              *     result = Reflect.getOwnMetadataKeys(Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     result = Reflect.getOwnMetadataKeys(Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     result = Reflect.getOwnMetadataKeys(Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     result = Reflect.getOwnMetadataKeys(Example.prototype, "method");
-              *
-              */
-            function getOwnMetadataKeys(target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                return OrdinaryOwnMetadataKeys(target, propertyKey);
-            }
-            Reflect.getOwnMetadataKeys = getOwnMetadataKeys;
-            /**
-              * Deletes the metadata entry from the target object with the provided key.
-              * @param metadataKey A key used to store and retrieve metadata.
-              * @param target The target object on which the metadata is defined.
-              * @param propertyKey (Optional) The property key for the target.
-              * @returns `true` if the metadata entry was found and deleted; otherwise, false.
-              * @example
-              *
-              *     class Example {
-              *         // property declarations are not part of ES6, though they are valid in TypeScript:
-              *         // static staticProperty;
-              *         // property;
-              *
-              *         constructor(p) { }
-              *         static staticMethod(p) { }
-              *         method(p) { }
-              *     }
-              *
-              *     // constructor
-              *     result = Reflect.deleteMetadata("custom:annotation", Example);
-              *
-              *     // property (on constructor)
-              *     result = Reflect.deleteMetadata("custom:annotation", Example, "staticProperty");
-              *
-              *     // property (on prototype)
-              *     result = Reflect.deleteMetadata("custom:annotation", Example.prototype, "property");
-              *
-              *     // method (on constructor)
-              *     result = Reflect.deleteMetadata("custom:annotation", Example, "staticMethod");
-              *
-              *     // method (on prototype)
-              *     result = Reflect.deleteMetadata("custom:annotation", Example.prototype, "method");
-              *
-              */
-            function deleteMetadata(metadataKey, target, propertyKey) {
-                if (!IsObject(target)) throw new TypeError();
-                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
-                var metadataMap = GetOrCreateMetadataMap(target, propertyKey, /*Create*/false);
-                if (IsUndefined(metadataMap)) return false;
-                if (!metadataMap.delete(metadataKey)) return false;
-                if (metadataMap.size > 0) return true;
-                var targetMetadata = Metadata.get(target);
-                targetMetadata.delete(propertyKey);
-                if (targetMetadata.size > 0) return true;
-                Metadata.delete(target);
-                return true;
-            }
-            Reflect.deleteMetadata = deleteMetadata;
-            function DecorateConstructor(decorators, target) {
-                for (var i = decorators.length - 1; i >= 0; --i) {
-                    var decorator = decorators[i];
-                    var decorated = decorator(target);
-                    if (!IsUndefined(decorated) && !IsNull(decorated)) {
-                        if (!IsConstructor(decorated)) throw new TypeError();
-                        target = decorated;
-                    }
-                }
-                return target;
-            }
-            function DecorateProperty(decorators, target, propertyKey, descriptor) {
-                for (var i = decorators.length - 1; i >= 0; --i) {
-                    var decorator = decorators[i];
-                    var decorated = decorator(target, propertyKey, descriptor);
-                    if (!IsUndefined(decorated) && !IsNull(decorated)) {
-                        if (!IsObject(decorated)) throw new TypeError();
-                        descriptor = decorated;
-                    }
-                }
-                return descriptor;
-            }
-            function GetOrCreateMetadataMap(O, P, Create) {
-                var targetMetadata = Metadata.get(O);
-                if (IsUndefined(targetMetadata)) {
-                    if (!Create) return undefined;
-                    targetMetadata = new _Map();
-                    Metadata.set(O, targetMetadata);
-                }
-                var metadataMap = targetMetadata.get(P);
-                if (IsUndefined(metadataMap)) {
-                    if (!Create) return undefined;
-                    metadataMap = new _Map();
-                    targetMetadata.set(P, metadataMap);
-                }
-                return metadataMap;
-            }
-            // 3.1.1.1 OrdinaryHasMetadata(MetadataKey, O, P)
-            // https://rbuckton.github.io/reflect-metadata/#ordinaryhasmetadata
-            function OrdinaryHasMetadata(MetadataKey, O, P) {
-                var hasOwn = OrdinaryHasOwnMetadata(MetadataKey, O, P);
-                if (hasOwn) return true;
-                var parent = OrdinaryGetPrototypeOf(O);
-                if (!IsNull(parent)) return OrdinaryHasMetadata(MetadataKey, parent, P);
-                return false;
-            }
-            // 3.1.2.1 OrdinaryHasOwnMetadata(MetadataKey, O, P)
-            // https://rbuckton.github.io/reflect-metadata/#ordinaryhasownmetadata
-            function OrdinaryHasOwnMetadata(MetadataKey, O, P) {
-                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/false);
-                if (IsUndefined(metadataMap)) return false;
-                return ToBoolean(metadataMap.has(MetadataKey));
-            }
-            // 3.1.3.1 OrdinaryGetMetadata(MetadataKey, O, P)
-            // https://rbuckton.github.io/reflect-metadata/#ordinarygetmetadata
-            function OrdinaryGetMetadata(MetadataKey, O, P) {
-                var hasOwn = OrdinaryHasOwnMetadata(MetadataKey, O, P);
-                if (hasOwn) return OrdinaryGetOwnMetadata(MetadataKey, O, P);
-                var parent = OrdinaryGetPrototypeOf(O);
-                if (!IsNull(parent)) return OrdinaryGetMetadata(MetadataKey, parent, P);
-                return undefined;
-            }
-            // 3.1.4.1 OrdinaryGetOwnMetadata(MetadataKey, O, P)
-            // https://rbuckton.github.io/reflect-metadata/#ordinarygetownmetadata
-            function OrdinaryGetOwnMetadata(MetadataKey, O, P) {
-                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/false);
-                if (IsUndefined(metadataMap)) return undefined;
-                return metadataMap.get(MetadataKey);
-            }
-            // 3.1.5.1 OrdinaryDefineOwnMetadata(MetadataKey, MetadataValue, O, P)
-            // https://rbuckton.github.io/reflect-metadata/#ordinarydefineownmetadata
-            function OrdinaryDefineOwnMetadata(MetadataKey, MetadataValue, O, P) {
-                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/true);
-                metadataMap.set(MetadataKey, MetadataValue);
-            }
-            // 3.1.6.1 OrdinaryMetadataKeys(O, P)
-            // https://rbuckton.github.io/reflect-metadata/#ordinarymetadatakeys
-            function OrdinaryMetadataKeys(O, P) {
-                var ownKeys = OrdinaryOwnMetadataKeys(O, P);
-                var parent = OrdinaryGetPrototypeOf(O);
-                if (parent === null) return ownKeys;
-                var parentKeys = OrdinaryMetadataKeys(parent, P);
-                if (parentKeys.length <= 0) return ownKeys;
-                if (ownKeys.length <= 0) return parentKeys;
-                var set = new _Set();
-                var keys = [];
-                for (var _i = 0, ownKeys_1 = ownKeys; _i < ownKeys_1.length; _i++) {
-                    var key = ownKeys_1[_i];
-                    var hasKey = set.has(key);
-                    if (!hasKey) {
-                        set.add(key);
-                        keys.push(key);
-                    }
-                }
-                for (var _a = 0, parentKeys_1 = parentKeys; _a < parentKeys_1.length; _a++) {
-                    var key = parentKeys_1[_a];
-                    var hasKey = set.has(key);
-                    if (!hasKey) {
-                        set.add(key);
-                        keys.push(key);
-                    }
-                }
-                return keys;
-            }
-            // 3.1.7.1 OrdinaryOwnMetadataKeys(O, P)
-            // https://rbuckton.github.io/reflect-metadata/#ordinaryownmetadatakeys
-            function OrdinaryOwnMetadataKeys(O, P) {
-                var keys = [];
-                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/false);
-                if (IsUndefined(metadataMap)) return keys;
-                var keysObj = metadataMap.keys();
-                var iterator = GetIterator(keysObj);
-                var k = 0;
-                while (true) {
-                    var next = IteratorStep(iterator);
-                    if (!next) {
-                        keys.length = k;
-                        return keys;
-                    }
-                    var nextValue = IteratorValue(next);
-                    try {
-                        keys[k] = nextValue;
-                    } catch (e) {
-                        try {
-                            IteratorClose(iterator);
-                        } finally {
-                            throw e;
-                        }
-                    }
-                    k++;
-                }
-            }
-            // 6 ECMAScript Data Typ0es and Values
-            // https://tc39.github.io/ecma262/#sec-ecmascript-data-types-and-values
-            function Type(x) {
-                if (x === null) return 1 /* Null */;
-                switch (typeof x) {
-                    case "undefined":
-                        return 0 /* Undefined */;
-                    case "boolean":
-                        return 2 /* Boolean */;
-                    case "string":
-                        return 3 /* String */;
-                    case "symbol":
-                        return 4 /* Symbol */;
-                    case "number":
-                        return 5 /* Number */;
-                    case "object":
-                        return x === null ? 1 /* Null */ : 6 /* Object */;
-                    default:
-                        return 6 /* Object */;
-                }
-            }
-            // 6.1.1 The Undefined Type
-            // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-undefined-type
-            function IsUndefined(x) {
-                return x === undefined;
-            }
-            // 6.1.2 The Null Type
-            // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-null-type
-            function IsNull(x) {
-                return x === null;
-            }
-            // 6.1.5 The Symbol Type
-            // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-symbol-type
-            function IsSymbol(x) {
-                return typeof x === "symbol";
-            }
-            // 6.1.7 The Object Type
-            // https://tc39.github.io/ecma262/#sec-object-type
-            function IsObject(x) {
-                return typeof x === "object" ? x !== null : typeof x === "function";
-            }
-            // 7.1 Type Conversion
-            // https://tc39.github.io/ecma262/#sec-type-conversion
-            // 7.1.1 ToPrimitive(input [, PreferredType])
-            // https://tc39.github.io/ecma262/#sec-toprimitive
-            function ToPrimitive(input, PreferredType) {
-                switch (Type(input)) {
-                    case 0 /* Undefined */:
-                        return input;
-                    case 1 /* Null */:
-                        return input;
-                    case 2 /* Boolean */:
-                        return input;
-                    case 3 /* String */:
-                        return input;
-                    case 4 /* Symbol */:
-                        return input;
-                    case 5 /* Number */:
-                        return input;
-                }
-                var hint = PreferredType === 3 /* String */ ? "string" : PreferredType === 5 /* Number */ ? "number" : "default";
-                var exoticToPrim = GetMethod(input, toPrimitiveSymbol);
-                if (exoticToPrim !== undefined) {
-                    var result = exoticToPrim.call(input, hint);
-                    if (IsObject(result)) throw new TypeError();
-                    return result;
-                }
-                return OrdinaryToPrimitive(input, hint === "default" ? "number" : hint);
-            }
-            // 7.1.1.1 OrdinaryToPrimitive(O, hint)
-            // https://tc39.github.io/ecma262/#sec-ordinarytoprimitive
-            function OrdinaryToPrimitive(O, hint) {
-                if (hint === "string") {
-                    var toString_1 = O.toString;
-                    if (IsCallable(toString_1)) {
-                        var result = toString_1.call(O);
-                        if (!IsObject(result)) return result;
-                    }
-                    var valueOf = O.valueOf;
-                    if (IsCallable(valueOf)) {
-                        var result = valueOf.call(O);
-                        if (!IsObject(result)) return result;
-                    }
-                } else {
-                    var valueOf = O.valueOf;
-                    if (IsCallable(valueOf)) {
-                        var result = valueOf.call(O);
-                        if (!IsObject(result)) return result;
-                    }
-                    var toString_2 = O.toString;
-                    if (IsCallable(toString_2)) {
-                        var result = toString_2.call(O);
-                        if (!IsObject(result)) return result;
-                    }
-                }
-                throw new TypeError();
-            }
-            // 7.1.2 ToBoolean(argument)
-            // https://tc39.github.io/ecma262/2016/#sec-toboolean
-            function ToBoolean(argument) {
-                return !!argument;
-            }
-            // 7.1.12 ToString(argument)
-            // https://tc39.github.io/ecma262/#sec-tostring
-            function ToString(argument) {
-                return "" + argument;
-            }
-            // 7.1.14 ToPropertyKey(argument)
-            // https://tc39.github.io/ecma262/#sec-topropertykey
-            function ToPropertyKey(argument) {
-                var key = ToPrimitive(argument, 3 /* String */);
-                if (IsSymbol(key)) return key;
-                return ToString(key);
-            }
-            // 7.2 Testing and Comparison Operations
-            // https://tc39.github.io/ecma262/#sec-testing-and-comparison-operations
-            // 7.2.2 IsArray(argument)
-            // https://tc39.github.io/ecma262/#sec-isarray
-            function IsArray(argument) {
-                return Array.isArray ? Array.isArray(argument) : argument instanceof Object ? argument instanceof Array : Object.prototype.toString.call(argument) === "[object Array]";
-            }
-            // 7.2.3 IsCallable(argument)
-            // https://tc39.github.io/ecma262/#sec-iscallable
-            function IsCallable(argument) {
-                // NOTE: This is an approximation as we cannot check for [[Call]] internal method.
-                return typeof argument === "function";
-            }
-            // 7.2.4 IsConstructor(argument)
-            // https://tc39.github.io/ecma262/#sec-isconstructor
-            function IsConstructor(argument) {
-                // NOTE: This is an approximation as we cannot check for [[Construct]] internal method.
-                return typeof argument === "function";
-            }
-            // 7.2.7 IsPropertyKey(argument)
-            // https://tc39.github.io/ecma262/#sec-ispropertykey
-            function IsPropertyKey(argument) {
-                switch (Type(argument)) {
-                    case 3 /* String */:
-                        return true;
-                    case 4 /* Symbol */:
-                        return true;
-                    default:
-                        return false;
-                }
-            }
-            // 7.3 Operations on Objects
-            // https://tc39.github.io/ecma262/#sec-operations-on-objects
-            // 7.3.9 GetMethod(V, P)
-            // https://tc39.github.io/ecma262/#sec-getmethod
-            function GetMethod(V, P) {
-                var func = V[P];
-                if (func === undefined || func === null) return undefined;
-                if (!IsCallable(func)) throw new TypeError();
-                return func;
-            }
-            // 7.4 Operations on Iterator Objects
-            // https://tc39.github.io/ecma262/#sec-operations-on-iterator-objects
-            function GetIterator(obj) {
-                var method = GetMethod(obj, iteratorSymbol);
-                if (!IsCallable(method)) throw new TypeError(); // from Call
-                var iterator = method.call(obj);
-                if (!IsObject(iterator)) throw new TypeError();
-                return iterator;
-            }
-            // 7.4.4 IteratorValue(iterResult)
-            // https://tc39.github.io/ecma262/2016/#sec-iteratorvalue
-            function IteratorValue(iterResult) {
-                return iterResult.value;
-            }
-            // 7.4.5 IteratorStep(iterator)
-            // https://tc39.github.io/ecma262/#sec-iteratorstep
-            function IteratorStep(iterator) {
-                var result = iterator.next();
-                return result.done ? false : result;
-            }
-            // 7.4.6 IteratorClose(iterator, completion)
-            // https://tc39.github.io/ecma262/#sec-iteratorclose
-            function IteratorClose(iterator) {
-                var f = iterator["return"];
-                if (f) f.call(iterator);
-            }
-            // 9.1 Ordinary Object Internal Methods and Internal Slots
-            // https://tc39.github.io/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
-            // 9.1.1.1 OrdinaryGetPrototypeOf(O)
-            // https://tc39.github.io/ecma262/#sec-ordinarygetprototypeof
-            function OrdinaryGetPrototypeOf(O) {
-                var proto = Object.getPrototypeOf(O);
-                if (typeof O !== "function" || O === functionPrototype) return proto;
-                // TypeScript doesn't set __proto__ in ES5, as it's non-standard.
-                // Try to determine the superclass constructor. Compatible implementations
-                // must either set __proto__ on a subclass constructor to the superclass constructor,
-                // or ensure each class has a valid `constructor` property on its prototype that
-                // points back to the constructor.
-                // If this is not the same as Function.[[Prototype]], then this is definately inherited.
-                // This is the case when in ES6 or when using __proto__ in a compatible browser.
-                if (proto !== functionPrototype) return proto;
-                // If the super prototype is Object.prototype, null, or undefined, then we cannot determine the heritage.
-                var prototype = O.prototype;
-                var prototypeProto = prototype && Object.getPrototypeOf(prototype);
-                if (prototypeProto == null || prototypeProto === Object.prototype) return proto;
-                // If the constructor was not a function, then we cannot determine the heritage.
-                var constructor = prototypeProto.constructor;
-                if (typeof constructor !== "function") return proto;
-                // If we have some kind of self-reference, then we cannot determine the heritage.
-                if (constructor === O) return proto;
-                // we have a pretty good guess at the heritage.
-                return constructor;
-            }
-            // naive Map shim
-            function CreateMapPolyfill() {
-                var cacheSentinel = {};
-                var arraySentinel = [];
-                var MapIterator = function () {
-                    function MapIterator(keys, values, selector) {
-                        this._index = 0;
-                        this._keys = keys;
-                        this._values = values;
-                        this._selector = selector;
-                    }
-                    MapIterator.prototype["@@iterator"] = function () {
-                        return this;
-                    };
-                    MapIterator.prototype[iteratorSymbol] = function () {
-                        return this;
-                    };
-                    MapIterator.prototype.next = function () {
-                        var index = this._index;
-                        if (index >= 0 && index < this._keys.length) {
-                            var result = this._selector(this._keys[index], this._values[index]);
-                            if (index + 1 >= this._keys.length) {
-                                this._index = -1;
-                                this._keys = arraySentinel;
-                                this._values = arraySentinel;
-                            } else {
-                                this._index++;
-                            }
-                            return { value: result, done: false };
-                        }
-                        return { value: undefined, done: true };
-                    };
-                    MapIterator.prototype.throw = function (error) {
-                        if (this._index >= 0) {
-                            this._index = -1;
-                            this._keys = arraySentinel;
-                            this._values = arraySentinel;
-                        }
-                        throw error;
-                    };
-                    MapIterator.prototype.return = function (value) {
-                        if (this._index >= 0) {
-                            this._index = -1;
-                            this._keys = arraySentinel;
-                            this._values = arraySentinel;
-                        }
-                        return { value: value, done: true };
-                    };
-                    return MapIterator;
-                }();
-                return function () {
-                    function Map() {
-                        this._keys = [];
-                        this._values = [];
-                        this._cacheKey = cacheSentinel;
-                        this._cacheIndex = -2;
-                    }
-                    Object.defineProperty(Map.prototype, "size", {
-                        get: function () {
-                            return this._keys.length;
-                        },
-                        enumerable: true,
-                        configurable: true
-                    });
-                    Map.prototype.has = function (key) {
-                        return this._find(key, /*insert*/false) >= 0;
-                    };
-                    Map.prototype.get = function (key) {
-                        var index = this._find(key, /*insert*/false);
-                        return index >= 0 ? this._values[index] : undefined;
-                    };
-                    Map.prototype.set = function (key, value) {
-                        var index = this._find(key, /*insert*/true);
-                        this._values[index] = value;
-                        return this;
-                    };
-                    Map.prototype.delete = function (key) {
-                        var index = this._find(key, /*insert*/false);
-                        if (index >= 0) {
-                            var size = this._keys.length;
-                            for (var i = index + 1; i < size; i++) {
-                                this._keys[i - 1] = this._keys[i];
-                                this._values[i - 1] = this._values[i];
-                            }
-                            this._keys.length--;
-                            this._values.length--;
-                            if (key === this._cacheKey) {
-                                this._cacheKey = cacheSentinel;
-                                this._cacheIndex = -2;
-                            }
-                            return true;
-                        }
-                        return false;
-                    };
-                    Map.prototype.clear = function () {
-                        this._keys.length = 0;
-                        this._values.length = 0;
-                        this._cacheKey = cacheSentinel;
-                        this._cacheIndex = -2;
-                    };
-                    Map.prototype.keys = function () {
-                        return new MapIterator(this._keys, this._values, getKey);
-                    };
-                    Map.prototype.values = function () {
-                        return new MapIterator(this._keys, this._values, getValue);
-                    };
-                    Map.prototype.entries = function () {
-                        return new MapIterator(this._keys, this._values, getEntry);
-                    };
-                    Map.prototype["@@iterator"] = function () {
-                        return this.entries();
-                    };
-                    Map.prototype[iteratorSymbol] = function () {
-                        return this.entries();
-                    };
-                    Map.prototype._find = function (key, insert) {
-                        if (this._cacheKey !== key) {
-                            this._cacheIndex = this._keys.indexOf(this._cacheKey = key);
-                        }
-                        if (this._cacheIndex < 0 && insert) {
-                            this._cacheIndex = this._keys.length;
-                            this._keys.push(key);
-                            this._values.push(undefined);
-                        }
-                        return this._cacheIndex;
-                    };
-                    return Map;
-                }();
-                function getKey(key, _) {
-                    return key;
-                }
-                function getValue(_, value) {
-                    return value;
-                }
-                function getEntry(key, value) {
-                    return [key, value];
-                }
-            }
-            // naive Set shim
-            function CreateSetPolyfill() {
-                return function () {
-                    function Set() {
-                        this._map = new _Map();
-                    }
-                    Object.defineProperty(Set.prototype, "size", {
-                        get: function () {
-                            return this._map.size;
-                        },
-                        enumerable: true,
-                        configurable: true
-                    });
-                    Set.prototype.has = function (value) {
-                        return this._map.has(value);
-                    };
-                    Set.prototype.add = function (value) {
-                        return this._map.set(value, value), this;
-                    };
-                    Set.prototype.delete = function (value) {
-                        return this._map.delete(value);
-                    };
-                    Set.prototype.clear = function () {
-                        this._map.clear();
-                    };
-                    Set.prototype.keys = function () {
-                        return this._map.keys();
-                    };
-                    Set.prototype.values = function () {
-                        return this._map.values();
-                    };
-                    Set.prototype.entries = function () {
-                        return this._map.entries();
-                    };
-                    Set.prototype["@@iterator"] = function () {
-                        return this.keys();
-                    };
-                    Set.prototype[iteratorSymbol] = function () {
-                        return this.keys();
-                    };
-                    return Set;
-                }();
-            }
-            // naive WeakMap shim
-            function CreateWeakMapPolyfill() {
-                var UUID_SIZE = 16;
-                var keys = HashMap.create();
-                var rootKey = CreateUniqueKey();
-                return function () {
-                    function WeakMap() {
-                        this._key = CreateUniqueKey();
-                    }
-                    WeakMap.prototype.has = function (target) {
-                        var table = GetOrCreateWeakMapTable(target, /*create*/false);
-                        return table !== undefined ? HashMap.has(table, this._key) : false;
-                    };
-                    WeakMap.prototype.get = function (target) {
-                        var table = GetOrCreateWeakMapTable(target, /*create*/false);
-                        return table !== undefined ? HashMap.get(table, this._key) : undefined;
-                    };
-                    WeakMap.prototype.set = function (target, value) {
-                        var table = GetOrCreateWeakMapTable(target, /*create*/true);
-                        table[this._key] = value;
-                        return this;
-                    };
-                    WeakMap.prototype.delete = function (target) {
-                        var table = GetOrCreateWeakMapTable(target, /*create*/false);
-                        return table !== undefined ? delete table[this._key] : false;
-                    };
-                    WeakMap.prototype.clear = function () {
-                        // NOTE: not a real clear, just makes the previous data unreachable
-                        this._key = CreateUniqueKey();
-                    };
-                    return WeakMap;
-                }();
-                function CreateUniqueKey() {
-                    var key;
-                    do key = "@@WeakMap@@" + CreateUUID(); while (HashMap.has(keys, key));
-                    keys[key] = true;
-                    return key;
-                }
-                function GetOrCreateWeakMapTable(target, create) {
-                    if (!hasOwn.call(target, rootKey)) {
-                        if (!create) return undefined;
-                        Object.defineProperty(target, rootKey, { value: HashMap.create() });
-                    }
-                    return target[rootKey];
-                }
-                function FillRandomBytes(buffer, size) {
-                    for (var i = 0; i < size; ++i) buffer[i] = Math.random() * 0xff | 0;
-                    return buffer;
-                }
-                function GenRandomBytes(size) {
-                    if (typeof Uint8Array === "function") {
-                        if (typeof crypto !== "undefined") return crypto.getRandomValues(new Uint8Array(size));
-                        if (typeof msCrypto !== "undefined") return msCrypto.getRandomValues(new Uint8Array(size));
-                        return FillRandomBytes(new Uint8Array(size), size);
-                    }
-                    return FillRandomBytes(new Array(size), size);
-                }
-                function CreateUUID() {
-                    var data = GenRandomBytes(UUID_SIZE);
-                    // mark as random - RFC 4122 § 4.4
-                    data[6] = data[6] & 0x4f | 0x40;
-                    data[8] = data[8] & 0xbf | 0x80;
-                    var result = "";
-                    for (var offset = 0; offset < UUID_SIZE; ++offset) {
-                        var byte = data[offset];
-                        if (offset === 4 || offset === 6 || offset === 8) result += "-";
-                        if (byte < 16) result += "0";
-                        result += byte.toString(16).toLowerCase();
-                    }
-                    return result;
-                }
-            }
-            // uses a heuristic used by v8 and chakra to force an object into dictionary mode.
-            function MakeDictionary(obj) {
-                obj.__ = undefined;
-                delete obj.__;
-                return obj;
-            }
-            // patch global Reflect
-            (function (__global) {
-                if (typeof __global.Reflect !== "undefined") {
-                    if (__global.Reflect !== Reflect) {
-                        for (var p in Reflect) {
-                            if (hasOwn.call(Reflect, p)) {
-                                __global.Reflect[p] = Reflect[p];
-                            }
-                        }
-                    }
-                } else {
-                    __global.Reflect = Reflect;
-                }
-            })(typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : Function("return this;")());
-        })(Reflect || (Reflect = {}));
-        
-
-        $__global["Reflect"] = Reflect;
-    })(this);
-
-    return _retrieveGlobal();
-});
-(function() {
-var define = System.amdDefine;
-!function(t, e) {
-  "object" == typeof exports && "object" == typeof module ? module.exports = e() : "function" == typeof define && define.amd ? define("node_modules/single-spa/lib/single-spa.js", [], e) && define("singleSpa", ["node_modules/single-spa/lib/single-spa.js"], function(m) {
-    return m;
-  }) : "object" == typeof exports ? exports.singleSpa = e() : t.singleSpa = e();
-}(this, function() {
-  return function(t) {
-    function e(r) {
-      if (n[r])
-        return n[r].exports;
-      var o = n[r] = {
-        i: r,
-        l: !1,
-        exports: {}
-      };
-      return t[r].call(o.exports, o, o.exports, e), o.l = !0, o.exports;
-    }
-    var n = {};
-    return e.m = t, e.c = n, e.i = function(t) {
-      return t;
-    }, e.d = function(t, n, r) {
-      e.o(t, n) || Object.defineProperty(t, n, {
-        configurable: !1,
-        enumerable: !0,
-        get: r
-      });
-    }, e.n = function(t) {
-      var n = t && t.__esModule ? function() {
-        return t.default;
-      } : function() {
-        return t;
-      };
-      return e.d(n, "a", n), n;
-    }, e.o = function(t, e) {
-      return Object.prototype.hasOwnProperty.call(t, e);
-    }, e.p = "", e(e.s = 111);
-  }([function(t, e, n) {
-    var r = n(36)("wks"),
-        o = n(26),
-        i = n(1).Symbol,
-        u = "function" == typeof i;
-    (t.exports = function(t) {
-      return r[t] || (r[t] = u && i[t] || (u ? i : o)("Symbol." + t));
-    }).store = r;
-  }, function(t, e) {
-    var n = t.exports = "undefined" != typeof window && window.Math == Math ? window : "undefined" != typeof self && self.Math == Math ? self : Function("return this")();
-    "number" == typeof __g && (__g = n);
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t.status === m;
-    }
-    function o(t) {
-      return !r(t);
-    }
-    function i(t) {
-      return t.status !== d && t.status !== h;
-    }
-    function u(t) {
-      return !i(t);
-    }
-    function a(t) {
-      try {
-        return t.activeWhen(window.location);
-      } catch (e) {
-        (0, p.handleChildAppError)(e, t), t.status = y;
-      }
-    }
-    function c(t) {
-      try {
-        return !t.activeWhen(window.location);
-      } catch (e) {
-        (0, p.handleChildAppError)(e, t), t.status = y;
-      }
-    }
-    function s(t) {
-      return t.status !== v;
-    }
-    function f(t) {
-      return t !== y && (!t || t.status !== y);
-    }
-    function l(t) {
-      return t.name;
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.SKIP_BECAUSE_BROKEN = e.UNLOADING = e.UNMOUNTING = e.MOUNTED = e.MOUNTING = e.NOT_MOUNTED = e.BOOTSTRAPPING = e.NOT_BOOTSTRAPPED = e.LOADING_SOURCE_CODE = e.NOT_LOADED = void 0, e.isActive = r, e.isntActive = o, e.isLoaded = i, e.isntLoaded = u, e.shouldBeActive = a, e.shouldntBeActive = c, e.notBootstrapped = s, e.notSkipped = f, e.toName = l;
-    var p = n(10),
-        d = e.NOT_LOADED = "NOT_LOADED",
-        h = e.LOADING_SOURCE_CODE = "LOADING_SOURCE_CODE",
-        v = e.NOT_BOOTSTRAPPED = "NOT_BOOTSTRAPPED",
-        m = (e.BOOTSTRAPPING = "BOOTSTRAPPING", e.NOT_MOUNTED = "NOT_MOUNTED", e.MOUNTING = "MOUNTING", e.MOUNTED = "MOUNTED"),
-        y = (e.UNMOUNTING = "UNMOUNTING", e.UNLOADING = "UNLOADING", e.SKIP_BECAUSE_BROKEN = "SKIP_BECAUSE_BROKEN");
-  }, function(t, e) {
-    var n = t.exports = {version: "2.4.0"};
-    "number" == typeof __e && (__e = n);
-  }, function(t, e, n) {
-    var r = n(16);
-    t.exports = function(t) {
-      if (!r(t))
-        throw TypeError(t + " is not an object!");
-      return t;
-    };
-  }, function(t, e, n) {
-    t.exports = !n(15)(function() {
-      return 7 != Object.defineProperty({}, "a", {get: function() {
-          return 7;
-        }}).a;
-    });
-  }, function(t, e) {
-    var n = {}.hasOwnProperty;
-    t.exports = function(t, e) {
-      return n.call(t, e);
-    };
-  }, function(t, e, n) {
-    var r = n(8),
-        o = n(24);
-    t.exports = n(5) ? function(t, e, n) {
-      return r.f(t, e, o(1, n));
-    } : function(t, e, n) {
-      return t[e] = n, t;
-    };
-  }, function(t, e, n) {
-    var r = n(4),
-        o = n(50),
-        i = n(38),
-        u = Object.defineProperty;
-    e.f = n(5) ? Object.defineProperty : function(t, e, n) {
-      if (r(t), e = i(e, !0), r(n), o)
-        try {
-          return u(t, e, n);
-        } catch (t) {}
-      if ("get" in n || "set" in n)
-        throw TypeError("Accessors not supported!");
-      return "value" in n && (t[e] = n.value), t;
-    };
-  }, function(t, e, n) {
-    var r = n(51),
-        o = n(31);
-    t.exports = function(t) {
-      return r(o(t));
-    };
-  }, function(t, e, n) {
-    "use strict";
-    function r(t, e) {
-      var n = o(t, e);
-      window.dispatchEvent(new u.default("single-spa:application-broken", {detail: {
-          appName: e.name,
-          err: n
-        }})), window.SINGLE_SPA_TESTING ? console.error(n) : setTimeout(function() {
-        throw n;
-      });
-    }
-    function o(t, e) {
-      var n = "'" + e.name + "' died in status " + e.status + ": ",
-          r = void 0;
-      if (t instanceof Error) {
-        try {
-          t.message = n + t.message;
-        } catch (t) {}
-        r = t;
-      } else {
-        console.warn("While " + e.status + ", '" + e.name + "' rejected its lifecycle function promise with a non-Error. This will cause stack traces to not be accurate.");
-        try {
-          r = new Error(n + JSON.stringify(t));
-        } catch (e) {
-          r = t;
-        }
-      }
-      return r;
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.handleChildAppError = r;
-    var i = n(41),
-        u = function(t) {
-          return t && t.__esModule ? t : {default: t};
-        }(i);
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
-      if ("number" != typeof t || t <= 0)
-        throw new Error("bootstrap max time must be a positive integer number of milliseconds");
-      l.bootstrap = {
-        millis: t,
-        dieOnTimeout: e
-      };
-    }
-    function o(t) {
-      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
-      if ("number" != typeof t || t <= 0)
-        throw new Error("mount max time must be a positive integer number of milliseconds");
-      l.mount = {
-        millis: t,
-        dieOnTimeout: e
-      };
-    }
-    function i(t) {
-      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
-      if ("number" != typeof t || t <= 0)
-        throw new Error("unmount max time must be a positive integer number of milliseconds");
-      l.unmount = {
-        millis: t,
-        dieOnTimeout: e
-      };
-    }
-    function u(t) {
-      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
-      if ("number" != typeof t || t <= 0)
-        throw new Error("unload max time must be a positive integer number of milliseconds");
-      l.unload = {
-        millis: t,
-        dieOnTimeout: e
-      };
-    }
-    function a(t, e, n, r) {
-      var o = 1e3;
-      return new Promise(function(r, i) {
-        function u(t) {
-          if (!a)
-            if (!0 === t)
-              c = !0, n.dieOnTimeout ? i(e + " did not resolve or reject for " + n.millis + " milliseconds") : console.error(e + " did not resolve or reject for " + n.millis + " milliseconds -- we're no longer going to warn you about it.");
-            else if (!c) {
-              var r = t,
-                  s = r * o;
-              console.warn(e + " did not resolve or reject within " + s + " milliseconds"), s + o < n.millis && setTimeout(function() {
-                return u(r + 1);
-              }, o);
-            }
-        }
-        var a = !1,
-            c = !1;
-        t.then(function(t) {
-          a = !0, r(t);
-        }).catch(function(t) {
-          a = !0, i(t);
-        }), setTimeout(function() {
-          return u(1);
-        }, o), setTimeout(function() {
-          return u(!0);
-        }, n.millis);
-      });
-    }
-    function c() {
-      var t = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : {};
-      return (0, f.default)({}, l, t);
-    }
-    Object.defineProperty(e, "__esModule", {value: !0});
-    var s = n(71),
-        f = function(t) {
-          return t && t.__esModule ? t : {default: t};
-        }(s);
-    e.setBootstrapMaxTime = r, e.setMountMaxTime = o, e.setUnmountMaxTime = i, e.setUnloadMaxTime = u, e.reasonableTime = a, e.ensureValidAppTimeouts = c;
-    var l = {
-      bootstrap: {
-        millis: 4e3,
-        dieOnTimeout: !1
-      },
-      mount: {
-        millis: 3e3,
-        dieOnTimeout: !1
-      },
-      unmount: {
-        millis: 3e3,
-        dieOnTimeout: !1
-      },
-      unload: {
-        millis: 3e3,
-        dieOnTimeout: !1
-      }
-    };
-  }, function(t, e, n) {
-    "use strict";
-    e.__esModule = !0;
-    var r = n(68),
-        o = function(t) {
-          return t && t.__esModule ? t : {default: t};
-        }(r);
-    e.default = function(t) {
-      return function() {
-        var e = t.apply(this, arguments);
-        return new o.default(function(t, n) {
-          function r(i, u) {
-            try {
-              var a = e[i](u),
-                  c = a.value;
-            } catch (t) {
-              return void n(t);
-            }
-            if (!a.done)
-              return o.default.resolve(c).then(function(t) {
-                r("next", t);
-              }, function(t) {
-                r("throw", t);
-              });
-            t(c);
-          }
-          return r("next");
-        });
-      };
-    };
-  }, function(t, e, n) {
-    t.exports = n(109);
-  }, function(t, e) {
-    var n = {}.toString;
-    t.exports = function(t) {
-      return n.call(t).slice(8, -1);
-    };
-  }, function(t, e) {
-    t.exports = function(t) {
-      try {
-        return !!t();
-      } catch (t) {
-        return !0;
-      }
-    };
-  }, function(t, e) {
-    t.exports = function(t) {
-      return "object" == typeof t ? null !== t : "function" == typeof t;
-    };
-  }, function(t, e) {
-    t.exports = {};
-  }, function(t, e, n) {
-    var r = n(55),
-        o = n(33);
-    t.exports = Object.keys || function(t) {
-      return r(t, o);
-    };
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t && t.__esModule ? t : {default: t};
-    }
-    function o() {
-      function t() {
-        var t = !(arguments.length > 0 && void 0 !== arguments[0]) || arguments[0],
-            r = (0, m.getMountedApps)();
-        t && e(), n.forEach(function(t) {
-          return t.resolve(r);
-        });
-        try {
-          var i = s ? "single-spa:no-app-change" : "single-spa:app-change";
-          window.dispatchEvent(new f.default(i)), window.dispatchEvent(new f.default("single-spa:routing-event"));
-        } catch (t) {
-          setTimeout(function() {
-            throw t;
-          });
-        }
-        if (b = !1, w.length > 0) {
-          var u = w;
-          w = [], o(u);
-        }
-        return r;
-      }
-      function e() {
-        n.forEach(function(t) {
-          (0, y.callCapturedEventListeners)(t.eventArguments);
-        }), (0, y.callCapturedEventListeners)(a);
-      }
-      var n = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : [],
-          r = function() {
-            var n = (0, c.default)(u.default.mark(function n() {
-              var r;
-              return u.default.wrap(function(n) {
-                for (; ; )
-                  switch (n.prev = n.next) {
-                    case 0:
-                      return r = (0, m.getAppsToLoad)().map(p.toLoadPromise), r.length > 0 && (s = !1), n.prev = 2, n.next = 5, Promise.all(r);
-                    case 5:
-                      n.next = 11;
-                      break;
-                    case 7:
-                      throw n.prev = 7, n.t0 = n.catch(2), e(), n.t0;
-                    case 11:
-                      return n.abrupt("return", t());
-                    case 12:
-                    case "end":
-                      return n.stop();
-                  }
-              }, n, this, [[2, 7]]);
-            }));
-            return function() {
-              return n.apply(this, arguments);
-            };
-          }(),
-          i = function() {
-            var r = (0, c.default)(u.default.mark(function r() {
-              var o,
-                  i,
-                  a,
-                  f,
-                  l,
-                  y,
-                  b;
-              return u.default.wrap(function(r) {
-                for (; ; )
-                  switch (r.prev = r.next) {
-                    case 0:
-                      return o = (0, g.getAppsToUnload)().map(g.toUnloadPromise), i = (0, m.getAppsToUnmount)().map(v.toUnmountPromise).map(function(t) {
-                        return t.then(g.toUnloadPromise);
-                      }), a = i.concat(o), a.length > 0 && (s = !1), f = Promise.all(a), l = (0, m.getAppsToLoad)(), y = l.map(function(t) {
-                        return (0, p.toLoadPromise)(t).then(d.toBootstrapPromise).then(function() {
-                          var t = (0, c.default)(u.default.mark(function t(e) {
-                            return u.default.wrap(function(t) {
-                              for (; ; )
-                                switch (t.prev = t.next) {
-                                  case 0:
-                                    return t.next = 2, f;
-                                  case 2:
-                                    return t.abrupt("return", (0, h.toMountPromise)(e));
-                                  case 3:
-                                  case "end":
-                                    return t.stop();
-                                }
-                            }, t, this);
-                          }));
-                          return function(e) {
-                            return t.apply(this, arguments);
-                          };
-                        }());
-                      }), y.length > 0 && (s = !1), b = (0, m.getAppsToMount)().filter(function(t) {
-                        return l.indexOf(t) < 0;
-                      }).map(function() {
-                        var t = (0, c.default)(u.default.mark(function t(e) {
-                          return u.default.wrap(function(t) {
-                            for (; ; )
-                              switch (t.prev = t.next) {
-                                case 0:
-                                  return t.next = 2, (0, d.toBootstrapPromise)(e);
-                                case 2:
-                                  return t.next = 4, f;
-                                case 4:
-                                  return t.abrupt("return", (0, h.toMountPromise)(e));
-                                case 5:
-                                case "end":
-                                  return t.stop();
-                              }
-                          }, t, this);
-                        }));
-                        return function(e) {
-                          return t.apply(this, arguments);
-                        };
-                      }()), b.length > 0 && (s = !1), r.prev = 10, r.next = 13, f;
-                    case 13:
-                      r.next = 19;
-                      break;
-                    case 15:
-                      throw r.prev = 15, r.t0 = r.catch(10), e(), r.t0;
-                    case 19:
-                      return e(), r.prev = 20, r.next = 23, Promise.all(y.concat(b));
-                    case 23:
-                      r.next = 29;
-                      break;
-                    case 25:
-                      throw r.prev = 25, r.t1 = r.catch(20), n.forEach(function(t) {
-                        return t.reject(r.t1);
-                      }), r.t1;
-                    case 29:
-                      return r.abrupt("return", t(!1));
-                    case 30:
-                    case "end":
-                      return r.stop();
-                  }
-              }, r, this, [[10, 15], [20, 25]]);
-            }));
-            return function() {
-              return r.apply(this, arguments);
-            };
-          }(),
-          a = arguments[1];
-      if (b)
-        return new Promise(function(t, e) {
-          w.push({
-            resolve: t,
-            reject: e,
-            eventArguments: a
-          });
-        });
-      b = !0;
-      var s = !0;
-      return (0, l.isStarted)() ? i() : r();
-    }
-    Object.defineProperty(e, "__esModule", {value: !0});
-    var i = n(13),
-        u = r(i),
-        a = n(12),
-        c = r(a);
-    e.reroute = o;
-    var s = n(41),
-        f = r(s),
-        l = n(47),
-        p = n(65),
-        d = n(64),
-        h = n(66),
-        v = n(45),
-        m = n(43),
-        y = (n(2), n(28)),
-        g = n(44),
-        b = !1,
-        w = [];
-  }, function(t, e, n) {
-    var r = n(30);
-    t.exports = function(t, e, n) {
-      if (r(t), void 0 === e)
-        return t;
-      switch (n) {
-        case 1:
-          return function(n) {
-            return t.call(e, n);
-          };
-        case 2:
-          return function(n, r) {
-            return t.call(e, n, r);
-          };
-        case 3:
-          return function(n, r, o) {
-            return t.call(e, n, r, o);
-          };
-      }
-      return function() {
-        return t.apply(e, arguments);
-      };
-    };
-  }, function(t, e, n) {
-    var r = n(1),
-        o = n(3),
-        i = n(20),
-        u = n(7),
-        a = function(t, e, n) {
-          var c,
-              s,
-              f,
-              l = t & a.F,
-              p = t & a.G,
-              d = t & a.S,
-              h = t & a.P,
-              v = t & a.B,
-              m = t & a.W,
-              y = p ? o : o[e] || (o[e] = {}),
-              g = y.prototype,
-              b = p ? r : d ? r[e] : (r[e] || {}).prototype;
-          p && (n = e);
-          for (c in n)
-            (s = !l && b && void 0 !== b[c]) && c in y || (f = s ? b[c] : n[c], y[c] = p && "function" != typeof b[c] ? n[c] : v && s ? i(f, r) : m && b[c] == f ? function(t) {
-              var e = function(e, n, r) {
-                if (this instanceof t) {
-                  switch (arguments.length) {
-                    case 0:
-                      return new t;
-                    case 1:
-                      return new t(e);
-                    case 2:
-                      return new t(e, n);
-                  }
-                  return new t(e, n, r);
-                }
-                return t.apply(this, arguments);
-              };
-              return e.prototype = t.prototype, e;
-            }(f) : h && "function" == typeof f ? i(Function.call, f) : f, h && ((y.virtual || (y.virtual = {}))[c] = f, t & a.R && g && !g[c] && u(g, c, f)));
-        };
-    a.F = 1, a.G = 2, a.S = 4, a.P = 8, a.B = 16, a.W = 32, a.U = 64, a.R = 128, t.exports = a;
-  }, function(t, e) {
-    t.exports = !0;
-  }, function(t, e) {
-    e.f = {}.propertyIsEnumerable;
-  }, function(t, e) {
-    t.exports = function(t, e) {
-      return {
-        enumerable: !(1 & t),
-        configurable: !(2 & t),
-        writable: !(4 & t),
-        value: e
-      };
-    };
-  }, function(t, e, n) {
-    var r = n(8).f,
-        o = n(6),
-        i = n(0)("toStringTag");
-    t.exports = function(t, e, n) {
-      t && !o(t = n ? t : t.prototype, i) && r(t, i, {
-        configurable: !0,
-        value: e
-      });
-    };
-  }, function(t, e) {
-    var n = 0,
-        r = Math.random();
-    t.exports = function(t) {
-      return "Symbol(".concat(void 0 === t ? "" : t, ")_", (++n + r).toString(36));
-    };
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      if (!t || "function" != typeof t.import)
-        throw new Error("'loader' is not a real loader. Must have an import function that returns a Promise");
-      e.Loader = o = t, console.error("Warning: singleSpa.setLoader is deprecated. Please declare apps with a loading function instead. See https://github.com/CanopyTax/single-spa/blob/master/docs/root-application.md#loading-function");
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.setLoader = r;
-    var o = e.Loader = null;
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      var e = void 0;
-      if ("string" == typeof t)
-        e = t;
-      else if (this && this.href)
-        e = this.href;
-      else {
-        if (!(t && t.currentTarget && t.currentTarget.href && t.preventDefault))
-          throw new Error("singleSpaNavigate must be either called with a string url, with an <a> tag as its context, or with an event whose currentTarget is an <a> tag");
-        e = t.currentTarget.href, t.preventDefault();
-      }
-      var n = u(window.location.href),
-          r = u(e);
-      0 === e.indexOf("#") ? window.location.hash = "#" + r.anchor : !function(t, e) {
-        return e === t || e === "/" + t;
-      }(r.path, n.path) || n.host !== r.host && r.host ? window.history.pushState(null, null, e) : window.location.hash = "#" + r.anchor;
-    }
-    function o(t) {
-      var e = this;
-      if (t) {
-        var n = t[0].type;
-        f.indexOf(n) >= 0 && s[n].forEach(function(n) {
-          n.apply(e, t);
-        });
-      }
-    }
-    function i() {
-      (0, a.reroute)([], arguments);
-    }
-    function u(t) {
-      for (var e = {
-        strictMode: !0,
-        key: ["source", "protocol", "authority", "userInfo", "user", "password", "host", "port", "relative", "path", "directory", "file", "query", "anchor"],
-        q: {
-          name: "queryKey",
-          parser: /(?:^|&)([^&=]*)=?([^&]*)/g
-        },
-        parser: {
-          strict: /^(?:([^:\/?#]+):)?(?:\/\/((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?))?((((?:[^?#\/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/,
-          loose: /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/
-        }
-      },
-          n = e,
-          r = n.parser[n.strictMode ? "strict" : "loose"].exec(t),
-          o = {},
-          i = 14; i--; )
-        o[n.key[i]] = r[i] || "";
-      return o[n.q.name] = {}, o[n.key[12]].replace(n.q.parser, function(t, e, r) {
-        e && (o[n.q.name][e] = r);
-      }), o;
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.routingEventsListeningTo = void 0, e.navigateToUrl = r, e.callCapturedEventListeners = o;
-    var a = n(19),
-        c = n(29),
-        s = {
-          hashchange: [],
-          popstate: []
-        },
-        f = e.routingEventsListeningTo = ["hashchange", "popstate"];
-    window.addEventListener("hashchange", i), window.addEventListener("popstate", i);
-    var l = window.addEventListener,
-        p = window.removeEventListener;
-    window.addEventListener = function(t, e) {
-      return "function" == typeof e && f.indexOf(t) >= 0 && !(0, c.find)(s[t], function(t) {
-        return t === e;
-      }) ? void s[t].push(e) : l.apply(this, arguments);
-    }, window.removeEventListener = function(t, e) {
-      return "function" == typeof e && f.indexOf(t) >= 0 ? void(s[t] = s[t].filter(function(t) {
-        return t !== e;
-      })) : p.apply(this, arguments);
-    };
-    var d = window.history.pushState;
-    window.history.pushState = function(t) {
-      var e = d.apply(this, arguments);
-      return (0, a.reroute)(), e;
-    };
-    var h = window.history.replaceState;
-    window.history.replaceState = function() {
-      var t = h.apply(this, arguments);
-      return (0, a.reroute)(), t;
-    }, window.singleSpaNavigate = r;
-  }, function(t, e, n) {
-    "use strict";
-    function r(t, e) {
-      for (var n = 0; n < t.length; n++)
-        if (e(t[n]))
-          return t[n];
-      return null;
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.find = r;
-  }, function(t, e) {
-    t.exports = function(t) {
-      if ("function" != typeof t)
-        throw TypeError(t + " is not a function!");
-      return t;
-    };
-  }, function(t, e) {
-    t.exports = function(t) {
-      if (void 0 == t)
-        throw TypeError("Can't call method on  " + t);
-      return t;
-    };
-  }, function(t, e, n) {
-    var r = n(16),
-        o = n(1).document,
-        i = r(o) && r(o.createElement);
-    t.exports = function(t) {
-      return i ? o.createElement(t) : {};
-    };
-  }, function(t, e) {
-    t.exports = "constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf".split(",");
-  }, function(t, e) {
-    e.f = Object.getOwnPropertySymbols;
-  }, function(t, e, n) {
-    var r = n(36)("keys"),
-        o = n(26);
-    t.exports = function(t) {
-      return r[t] || (r[t] = o(t));
-    };
-  }, function(t, e, n) {
-    var r = n(1),
-        o = r["__core-js_shared__"] || (r["__core-js_shared__"] = {});
-    t.exports = function(t) {
-      return o[t] || (o[t] = {});
-    };
-  }, function(t, e) {
-    var n = Math.ceil,
-        r = Math.floor;
-    t.exports = function(t) {
-      return isNaN(t = +t) ? 0 : (t > 0 ? r : n)(t);
-    };
-  }, function(t, e, n) {
-    var r = n(16);
-    t.exports = function(t, e) {
-      if (!r(t))
-        return t;
-      var n,
-          o;
-      if (e && "function" == typeof(n = t.toString) && !r(o = n.call(t)))
-        return o;
-      if ("function" == typeof(n = t.valueOf) && !r(o = n.call(t)))
-        return o;
-      if (!e && "function" == typeof(n = t.toString) && !r(o = n.call(t)))
-        return o;
-      throw TypeError("Can't convert object to primitive value");
-    };
-  }, function(t, e, n) {
-    var r = n(1),
-        o = n(3),
-        i = n(22),
-        u = n(40),
-        a = n(8).f;
-    t.exports = function(t) {
-      var e = o.Symbol || (o.Symbol = i ? {} : r.Symbol || {});
-      "_" == t.charAt(0) || t in e || a(e, t, {value: u.f(t)});
-    };
-  }, function(t, e, n) {
-    e.f = n(0);
-  }, function(t, e, n) {
-    (function(e) {
-      var n = e.CustomEvent;
-      t.exports = function() {
-        try {
-          var t = new n("cat", {detail: {foo: "bar"}});
-          return "cat" === t.type && "bar" === t.detail.foo;
-        } catch (t) {}
-        return !1;
-      }() ? n : "undefined" != typeof document && "function" == typeof document.createEvent ? function(t, e) {
-        var n = document.createEvent("CustomEvent");
-        return e ? n.initCustomEvent(t, e.bubbles, e.cancelable, e.detail) : n.initCustomEvent(t, !1, !1, void 0), n;
-      } : function(t, e) {
-        var n = document.createEventObject();
-        return n.type = t, e ? (n.bubbles = Boolean(e.bubbles), n.cancelable = Boolean(e.cancelable), n.detail = e.detail) : (n.bubbles = !1, n.cancelable = !1, n.detail = void 0), n;
-      };
-    }).call(e, n(42));
-  }, function(t, e) {
-    var n;
-    n = function() {
-      return this;
-    }();
-    try {
-      n = n || Function("return this")() || (0, eval)("this");
-    } catch (t) {
-      "object" == typeof window && (n = window);
-    }
-    t.exports = n;
-  }, function(t, e, n) {
-    "use strict";
-    function r() {
-      return g.filter(d.isActive).map(d.toName);
-    }
-    function o(t) {
-      var e = (0, v.find)(g, function(e) {
-        return e.name === t;
-      });
-      return e ? e.status : null;
-    }
-    function i(t, e, n) {
-      if ("string" != typeof t || 0 === t.length)
-        throw new Error("The first argument must be a non-empty string 'appName'");
-      if (g[t])
-        throw new Error("There is already an app declared with name " + t);
-      var r = void 0,
-          o = void 0;
-      if (n)
-        r = e, o = n;
-      else {
-        if (!l.Loader)
-          throw new Error("You cannot declare a single-spa child application without either providing a way to load the application or a Loader. See https://github.com/CanopyTax/single-spa/blob/master/docs/single-spa-api.md#declarechildapplication");
-        r = function() {
-          return l.Loader.import(t);
-        }, o = e;
-      }
-      if ("function" != typeof o)
-        throw new Error("The activeWhen argument must be a function");
-      g.push({
-        name: t,
-        loadImpl: r,
-        activeWhen: o,
-        status: d.NOT_LOADED
-      }), (0, p.ensureJQuerySupport)(), (0, h.reroute)();
-    }
-    function u() {
-      return g.filter(d.shouldBeActive).filter(d.notSkipped).filter(d.isntLoaded);
-    }
-    function a() {
-      return g.filter(d.shouldntBeActive).filter(d.notSkipped).filter(d.isActive);
-    }
-    function c() {
-      return g.filter(d.shouldBeActive).filter(d.notSkipped).filter(d.isntActive).filter(d.isLoaded);
-    }
-    function s(t) {
-      var e = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : {waitForUnmount: !1};
-      if ("string" != typeof t)
-        throw new Error("unloadChildApplication requires a string 'appName'");
-      var n = (0, v.find)(g, function(e) {
-        return e.name === t;
-      });
-      if (!n)
-        throw new Error("Could not unload child application '" + t + "' because no such application has been declared");
-      var r = (0, y.getAppUnloadInfo)(n.name);
-      if (e && e.waitForUnmount) {
-        if (r)
-          return r.promise;
-        var o = new Promise(function(t, e) {
-          (0, y.addAppToUnload)(n, function() {
-            return o;
-          }, t, e);
-        });
-        return o;
-      }
-      var i = void 0;
-      return r ? (i = r.promise, f(n, r.resolve, r.reject)) : i = new Promise(function(t, e) {
-        (0, y.addAppToUnload)(n, function() {
-          return i;
-        }, t, e), f(n, t, e);
-      }), i;
-    }
-    function f(t, e, n) {
-      (0, m.toUnmountPromise)(t).then(y.toUnloadPromise).then(function() {
-        e(), setTimeout(function() {
-          (0, h.reroute)();
-        });
-      }).catch(n);
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.getMountedApps = r, e.getAppStatus = o, e.declareChildApplication = i, e.getAppsToLoad = u, e.getAppsToUnmount = a, e.getAppsToMount = c, e.unloadChildApplication = s;
-    var l = n(27),
-        p = n(46),
-        d = n(2),
-        h = n(19),
-        v = n(29),
-        m = n(45),
-        y = n(44),
-        g = [];
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t && t.__esModule ? t : {default: t};
-    }
-    function o(t, e) {
-      delete m[t.name], delete t.bootstrap, delete t.mount, delete t.unmount, delete t.unload, t.status = d.NOT_LOADED, e.resolve();
-    }
-    function i(t, e, n) {
-      delete m[t.name], delete t.bootstrap, delete t.mount, delete t.unmount, delete t.unload, (0, h.handleChildAppError)(n, t), t.status = d.SKIP_BECAUSE_BROKEN, e.reject(n);
-    }
-    function u(t, e, n, r) {
-      m[t.name] = {
-        app: t,
-        resolve: n,
-        reject: r
-      }, Object.defineProperty(m[t.name], "promise", {get: e});
-    }
-    function a(t) {
-      return m[t];
-    }
-    function c() {
-      return Object.keys(m).map(function(t) {
-        return m[t].app;
-      }).filter(d.isntActive);
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.toUnloadPromise = void 0;
-    var s = n(13),
-        f = r(s),
-        l = n(12),
-        p = r(l);
-    e.toUnloadPromise = function() {
-      var t = (0, p.default)(f.default.mark(function t(e) {
-        var n;
-        return f.default.wrap(function(t) {
-          for (; ; )
-            switch (t.prev = t.next) {
-              case 0:
-                if (n = m[e.name], e.status !== d.NOT_LOADED) {
-                  t.next = 4;
-                  break;
-                }
-                return o(e, n), t.abrupt("return", e);
-              case 4:
-                if (e.status !== d.UNLOADING) {
-                  t.next = 8;
-                  break;
-                }
-                return t.next = 7, n.promise;
-              case 7:
-                return t.abrupt("return", e);
-              case 8:
-                if (e.status === d.NOT_MOUNTED) {
-                  t.next = 10;
-                  break;
-                }
-                return t.abrupt("return", e);
-              case 10:
-                if (n) {
-                  t.next = 12;
-                  break;
-                }
-                return t.abrupt("return", e);
-              case 12:
-                return t.prev = 12, e.status = d.UNLOADING, t.next = 16, (0, v.reasonableTime)(e.unload({childAppName: e.name}), "Unloading application '" + e.name + "'", e.timeouts.unload);
-              case 16:
-                t.next = 22;
-                break;
-              case 18:
-                return t.prev = 18, t.t0 = t.catch(12), i(e, n, t.t0), t.abrupt("return", e);
-              case 22:
-                return o(e, n), t.abrupt("return", e);
-              case 24:
-              case "end":
-                return t.stop();
-            }
-        }, t, this, [[12, 18]]);
-      }));
-      return function(e) {
-        return t.apply(this, arguments);
-      };
-    }();
-    e.addAppToUnload = u, e.getAppUnloadInfo = a, e.getAppsToUnload = c;
-    var d = n(2),
-        h = n(10),
-        v = n(11),
-        m = {};
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t && t.__esModule ? t : {default: t};
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.toUnmountPromise = void 0;
-    var o = n(13),
-        i = r(o),
-        u = n(12),
-        a = r(u),
-        c = (e.toUnmountPromise = function() {
-          var t = (0, a.default)(i.default.mark(function t(e) {
-            return i.default.wrap(function(t) {
-              for (; ; )
-                switch (t.prev = t.next) {
-                  case 0:
-                    if (e.status === c.MOUNTED) {
-                      t.next = 2;
-                      break;
-                    }
-                    return t.abrupt("return", e);
-                  case 2:
-                    return e.status = c.UNMOUNTING, t.prev = 3, t.next = 6, (0, f.reasonableTime)(e.unmount({childAppName: e.name}), "Unmounting application " + e.name + "'", e.timeouts.unmount);
-                  case 6:
-                    e.status = c.NOT_MOUNTED, t.next = 13;
-                    break;
-                  case 9:
-                    t.prev = 9, t.t0 = t.catch(3), (0, s.handleChildAppError)(t.t0, e), e.status = c.SKIP_BECAUSE_BROKEN;
-                  case 13:
-                    return t.abrupt("return", e);
-                  case 14:
-                  case "end":
-                    return t.stop();
-                }
-            }, t, this, [[3, 9]]);
-          }));
-          return function(e) {
-            return t.apply(this, arguments);
-          };
-        }(), n(2)),
-        s = n(10),
-        f = n(11);
-  }, function(t, e, n) {
-    "use strict";
-    function r() {
-      var t = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : window.jQuery;
-      if (t || window.$ && window.$.fn && window.$.fn.jquery && (t = window.$), t && !u) {
-        var e = t.fn.on,
-            n = t.fn.off;
-        t.fn.on = function(t, n) {
-          return o.call(this, e, window.addEventListener, t, n, arguments);
-        }, t.fn.off = function(t, e) {
-          return o.call(this, n, window.removeEventListener, t, e, arguments);
-        }, u = !0;
-      }
-    }
-    function o(t, e, n, r, o) {
-      return "string" != typeof n ? t.apply(this, o) : (n.split(/\s+/).forEach(function(t) {
-        i.routingEventsListeningTo.indexOf(t) >= 0 && (e(t, r), n = n.replace(t, ""));
-      }), "" === n.trim() ? this : t.apply(this, o));
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.ensureJQuerySupport = r;
-    var i = n(28),
-        u = !1;
-  }, function(t, e, n) {
-    "use strict";
-    function r() {
-      e.started = u = !0, (0, i.reroute)();
-    }
-    function o() {
-      return u;
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.started = void 0, e.start = r, e.isStarted = o;
-    var i = n(19),
-        u = (n(27), e.started = !1);
-    setTimeout(function() {
-      u || console.warn("singleSpa.start() has not been called, 5000ms after single-spa was loaded. Before start() is called, child apps can be declared and loaded, but not bootstrapped or mounted. See https://github.com/CanopyTax/single-spa/blob/master/docs/single-spa-api.md#start");
-    }, 5e3);
-  }, function(t, e, n) {
-    var r = n(14),
-        o = n(0)("toStringTag"),
-        i = "Arguments" == r(function() {
-          return arguments;
-        }()),
-        u = function(t, e) {
-          try {
-            return t[e];
-          } catch (t) {}
-        };
-    t.exports = function(t) {
-      var e,
-          n,
-          a;
-      return void 0 === t ? "Undefined" : null === t ? "Null" : "string" == typeof(n = u(e = Object(t), o)) ? n : i ? r(e) : "Object" == (a = r(e)) && "function" == typeof e.callee ? "Arguments" : a;
-    };
-  }, function(t, e, n) {
-    t.exports = n(1).document && document.documentElement;
-  }, function(t, e, n) {
-    t.exports = !n(5) && !n(15)(function() {
-      return 7 != Object.defineProperty(n(32)("div"), "a", {get: function() {
-          return 7;
-        }}).a;
-    });
-  }, function(t, e, n) {
-    var r = n(14);
-    t.exports = Object("z").propertyIsEnumerable(0) ? Object : function(t) {
-      return "String" == r(t) ? t.split("") : Object(t);
-    };
-  }, function(t, e, n) {
-    "use strict";
-    var r = n(22),
-        o = n(21),
-        i = n(56),
-        u = n(7),
-        a = n(6),
-        c = n(17),
-        s = n(86),
-        f = n(25),
-        l = n(96),
-        p = n(0)("iterator"),
-        d = !([].keys && "next" in [].keys()),
-        h = function() {
-          return this;
-        };
-    t.exports = function(t, e, n, v, m, y, g) {
-      s(n, e, v);
-      var b,
-          w,
-          O,
-          _ = function(t) {
-            if (!d && t in P)
-              return P[t];
-            switch (t) {
-              case "keys":
-              case "values":
-                return function() {
-                  return new n(this, t);
-                };
-            }
-            return function() {
-              return new n(this, t);
-            };
-          },
-          x = e + " Iterator",
-          E = "values" == m,
-          T = !1,
-          P = t.prototype,
-          N = P[p] || P["@@iterator"] || m && P[m],
-          j = N || _(m),
-          A = m ? E ? _("entries") : j : void 0,
-          S = "Array" == e ? P.entries || N : N;
-      if (S && (O = l(S.call(new t))) !== Object.prototype && (f(O, x, !0), r || a(O, p) || u(O, p, h)), E && N && "values" !== N.name && (T = !0, j = function() {
-        return N.call(this);
-      }), r && !g || !d && !T && P[p] || u(P, p, j), c[e] = j, c[x] = h, m)
-        if (b = {
-          values: E ? j : _("values"),
-          keys: y ? j : _("keys"),
-          entries: A
-        }, g)
-          for (w in b)
-            w in P || i(P, w, b[w]);
-        else
-          o(o.P + o.F * (d || T), e, b);
-      return b;
-    };
-  }, function(t, e, n) {
-    var r = n(4),
-        o = n(93),
-        i = n(33),
-        u = n(35)("IE_PROTO"),
-        a = function() {},
-        c = function() {
-          var t,
-              e = n(32)("iframe"),
-              r = i.length;
-          for (e.style.display = "none", n(49).appendChild(e), e.src = "javascript:", t = e.contentWindow.document, t.open(), t.write("<script>document.F=Object<\/script>"), t.close(), c = t.F; r--; )
-            delete c.prototype[i[r]];
-          return c();
-        };
-    t.exports = Object.create || function(t, e) {
-      var n;
-      return null !== t ? (a.prototype = r(t), n = new a, a.prototype = null, n[u] = t) : n = c(), void 0 === e ? n : o(n, e);
-    };
-  }, function(t, e, n) {
-    var r = n(55),
-        o = n(33).concat("length", "prototype");
-    e.f = Object.getOwnPropertyNames || function(t) {
-      return r(t, o);
-    };
-  }, function(t, e, n) {
-    var r = n(6),
-        o = n(9),
-        i = n(79)(!1),
-        u = n(35)("IE_PROTO");
-    t.exports = function(t, e) {
-      var n,
-          a = o(t),
-          c = 0,
-          s = [];
-      for (n in a)
-        n != u && r(a, n) && s.push(n);
-      for (; e.length > c; )
-        r(a, n = e[c++]) && (~i(s, n) || s.push(n));
-      return s;
-    };
-  }, function(t, e, n) {
-    t.exports = n(7);
-  }, function(t, e, n) {
-    var r,
-        o,
-        i,
-        u = n(20),
-        a = n(82),
-        c = n(49),
-        s = n(32),
-        f = n(1),
-        l = f.process,
-        p = f.setImmediate,
-        d = f.clearImmediate,
-        h = f.MessageChannel,
-        v = 0,
-        m = {},
-        y = function() {
-          var t = +this;
-          if (m.hasOwnProperty(t)) {
-            var e = m[t];
-            delete m[t], e();
-          }
-        },
-        g = function(t) {
-          y.call(t.data);
-        };
-    p && d || (p = function(t) {
-      for (var e = [],
-          n = 1; arguments.length > n; )
-        e.push(arguments[n++]);
-      return m[++v] = function() {
-        a("function" == typeof t ? t : Function(t), e);
-      }, r(v), v;
-    }, d = function(t) {
-      delete m[t];
-    }, "process" == n(14)(l) ? r = function(t) {
-      l.nextTick(u(y, t, 1));
-    } : h ? (o = new h, i = o.port2, o.port1.onmessage = g, r = u(i.postMessage, i, 1)) : f.addEventListener && "function" == typeof postMessage && !f.importScripts ? (r = function(t) {
-      f.postMessage(t + "", "*");
-    }, f.addEventListener("message", g, !1)) : r = "onreadystatechange" in s("script") ? function(t) {
-      c.appendChild(s("script")).onreadystatechange = function() {
-        c.removeChild(this), y.call(t);
-      };
-    } : function(t) {
-      setTimeout(u(y, t, 1), 0);
-    }), t.exports = {
-      set: p,
-      clear: d
-    };
-  }, function(t, e, n) {
-    var r = n(37),
-        o = Math.min;
-    t.exports = function(t) {
-      return t > 0 ? o(r(t), 9007199254740991) : 0;
-    };
-  }, function(t, e, n) {
-    var r = n(31);
-    t.exports = function(t) {
-      return Object(r(t));
-    };
-  }, function(t, e) {}, function(t, e, n) {
-    "use strict";
-    var r = n(100)(!0);
-    n(52)(String, "String", function(t) {
-      this._t = String(t), this._i = 0;
-    }, function() {
-      var t,
-          e = this._t,
-          n = this._i;
-      return n >= e.length ? {
-        value: void 0,
-        done: !0
-      } : (t = r(e, n), this._i += t.length, {
-        value: t,
-        done: !1
-      });
-    });
-  }, function(t, e, n) {
-    n(103);
-    for (var r = n(1),
-        o = n(7),
-        i = n(17),
-        u = n(0)("toStringTag"),
-        a = ["NodeList", "DOMTokenList", "MediaList", "StyleSheetList", "CSSRuleList"],
-        c = 0; c < 5; c++) {
-      var s = a[c],
-          f = r[s],
-          l = f && f.prototype;
-      l && !l[u] && o(l, u, s), i[s] = i.Array;
-    }
-  }, function(t, e, n) {
-    "use strict";
-    Object.defineProperty(e, "__esModule", {value: !0});
-    var r = n(47);
-    Object.defineProperty(e, "start", {
-      enumerable: !0,
-      get: function() {
-        return r.start;
-      }
-    });
-    var o = n(46);
-    Object.defineProperty(e, "ensureJQuerySupport", {
-      enumerable: !0,
-      get: function() {
-        return o.ensureJQuerySupport;
-      }
-    });
-    var i = n(11);
-    Object.defineProperty(e, "setBootstrapMaxTime", {
-      enumerable: !0,
-      get: function() {
-        return i.setBootstrapMaxTime;
-      }
-    }), Object.defineProperty(e, "setMountMaxTime", {
-      enumerable: !0,
-      get: function() {
-        return i.setMountMaxTime;
-      }
-    }), Object.defineProperty(e, "setUnmountMaxTime", {
-      enumerable: !0,
-      get: function() {
-        return i.setUnmountMaxTime;
-      }
-    }), Object.defineProperty(e, "setUnloadMaxTime", {
-      enumerable: !0,
-      get: function() {
-        return i.setUnloadMaxTime;
-      }
-    });
-    var u = n(43);
-    Object.defineProperty(e, "declareChildApplication", {
-      enumerable: !0,
-      get: function() {
-        return u.declareChildApplication;
-      }
-    }), Object.defineProperty(e, "getMountedApps", {
-      enumerable: !0,
-      get: function() {
-        return u.getMountedApps;
-      }
-    }), Object.defineProperty(e, "getAppStatus", {
-      enumerable: !0,
-      get: function() {
-        return u.getAppStatus;
-      }
-    }), Object.defineProperty(e, "unloadChildApplication", {
-      enumerable: !0,
-      get: function() {
-        return u.unloadChildApplication;
-      }
-    });
-    var a = n(28);
-    Object.defineProperty(e, "navigateToUrl", {
-      enumerable: !0,
-      get: function() {
-        return a.navigateToUrl;
-      }
-    });
-    var c = n(19);
-    Object.defineProperty(e, "triggerAppChange", {
-      enumerable: !0,
-      get: function() {
-        return c.reroute;
-      }
-    });
-    var s = n(27);
-    Object.defineProperty(e, "setLoader", {
-      enumerable: !0,
-      get: function() {
-        return s.setLoader;
-      }
-    });
-    var f = n(2);
-    Object.defineProperty(e, "NOT_LOADED", {
-      enumerable: !0,
-      get: function() {
-        return f.NOT_LOADED;
-      }
-    }), Object.defineProperty(e, "LOADING_SOURCE_CODE", {
-      enumerable: !0,
-      get: function() {
-        return f.LOADING_SOURCE_CODE;
-      }
-    }), Object.defineProperty(e, "NOT_BOOTSTRAPPED", {
-      enumerable: !0,
-      get: function() {
-        return f.NOT_BOOTSTRAPPED;
-      }
-    }), Object.defineProperty(e, "BOOTSTRAPPING", {
-      enumerable: !0,
-      get: function() {
-        return f.BOOTSTRAPPING;
-      }
-    }), Object.defineProperty(e, "NOT_MOUNTED", {
-      enumerable: !0,
-      get: function() {
-        return f.NOT_MOUNTED;
-      }
-    }), Object.defineProperty(e, "MOUNTING", {
-      enumerable: !0,
-      get: function() {
-        return f.MOUNTING;
-      }
-    }), Object.defineProperty(e, "MOUNTED", {
-      enumerable: !0,
-      get: function() {
-        return f.MOUNTED;
-      }
-    }), Object.defineProperty(e, "UNMOUNTING", {
-      enumerable: !0,
-      get: function() {
-        return f.UNMOUNTING;
-      }
-    }), Object.defineProperty(e, "SKIP_BECAUSE_BROKEN", {
-      enumerable: !0,
-      get: function() {
-        return f.SKIP_BECAUSE_BROKEN;
-      }
-    });
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t && t.__esModule ? t : {default: t};
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.toBootstrapPromise = void 0;
-    var o = n(13),
-        i = r(o),
-        u = n(12),
-        a = r(u),
-        c = (e.toBootstrapPromise = function() {
-          var t = (0, a.default)(i.default.mark(function t(e) {
-            return i.default.wrap(function(t) {
-              for (; ; )
-                switch (t.prev = t.next) {
-                  case 0:
-                    if (e.status === c.NOT_BOOTSTRAPPED) {
-                      t.next = 2;
-                      break;
-                    }
-                    return t.abrupt("return", e);
-                  case 2:
-                    return e.status = c.BOOTSTRAPPING, t.prev = 3, t.next = 6, (0, s.reasonableTime)(e.bootstrap({childAppName: e.name}), "Bootstrapping app '" + e.name + "'", e.timeouts.bootstrap);
-                  case 6:
-                    e.status = c.NOT_MOUNTED, t.next = 13;
-                    break;
-                  case 9:
-                    t.prev = 9, t.t0 = t.catch(3), e.status = c.SKIP_BECAUSE_BROKEN, (0, f.handleChildAppError)(t.t0, e);
-                  case 13:
-                    return t.abrupt("return", e);
-                  case 14:
-                  case "end":
-                    return t.stop();
-                }
-            }, t, this, [[3, 9]]);
-          }));
-          return function(e) {
-            return t.apply(this, arguments);
-          };
-        }(), n(2)),
-        s = n(11),
-        f = n(10);
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t && t.__esModule ? t : {default: t};
-    }
-    function o(t) {
-      return t && ("function" == typeof t || function(t) {
-        return Array.isArray(t) && !(0, m.find)(t, function(t) {
-          return "function" != typeof t;
-        });
-      }(t));
-    }
-    function i(t, e) {
-      return t = Array.isArray(t) ? t : [t], 0 === t.length && (t = [function() {
-        return Promise.resolve();
-      }]), function(n) {
-        return new Promise(function(r, o) {
-          function i(a) {
-            var c = t[a](n);
-            u(c) ? c.then(function() {
-              a === t.length - 1 ? r() : i(a + 1);
-            }).catch(o) : o(e + " at index " + a + " did not return a promise");
-          }
-          i(0);
-        });
-      };
-    }
-    function u(t) {
-      return t && "function" == typeof t.then && "function" == typeof t.catch;
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.toLoadPromise = void 0;
-    var a = n(13),
-        c = r(a),
-        s = n(72),
-        f = r(s),
-        l = n(12),
-        p = r(l),
-        d = (e.toLoadPromise = function() {
-          var t = (0, p.default)(c.default.mark(function t(e) {
-            var n,
-                r,
-                a;
-            return c.default.wrap(function(t) {
-              for (; ; )
-                switch (t.prev = t.next) {
-                  case 0:
-                    if (e.status === d.NOT_LOADED) {
-                      t.next = 2;
-                      break;
-                    }
-                    return t.abrupt("return", e);
-                  case 2:
-                    if (e.status = d.LOADING_SOURCE_CODE, n = void 0, t.prev = 4, r = e.loadImpl({childAppName: e.name}), u(r)) {
-                      t.next = 8;
-                      break;
-                    }
-                    throw new Error("single-spa loading function did not return a promise. Check the second argument to declareChildApplication('" + e.name + "', loadingFunction, activityFunction)");
-                  case 8:
-                    return t.next = 10, r;
-                  case 10:
-                    n = t.sent, t.next = 18;
-                    break;
-                  case 13:
-                    return t.prev = 13, t.t0 = t.catch(4), (0, v.handleChildAppError)(t.t0, e), e.status = d.SKIP_BECAUSE_BROKEN, t.abrupt("return", e);
-                  case 18:
-                    if (a = void 0, "object" !== (void 0 === n ? "undefined" : (0, f.default)(n)) && (a = "does not export anything"), o(n.bootstrap) || (a = "does not export a bootstrap function or array of functions"), o(n.mount) || (a = "does not export a mount function or array of functions"), o(n.unmount) || (a = "does not export an unmount function or array of functions"), !a) {
-                      t.next = 27;
-                      break;
-                    }
-                    return (0, v.handleChildAppError)(a, e), e.status = d.SKIP_BECAUSE_BROKEN, t.abrupt("return", e);
-                  case 27:
-                    return e.status = d.NOT_BOOTSTRAPPED, e.bootstrap = i(n.bootstrap, "App '" + e.name + "' bootstrap function"), e.mount = i(n.mount, "App '" + e.name + "' mount function"), e.unmount = i(n.unmount, "App '" + e.name + "' unmount function"), e.unload = i(n.unload || [], "App '" + e.name + "' unload function"), e.timeouts = (0, h.ensureValidAppTimeouts)(n.timeouts), t.abrupt("return", e);
-                  case 34:
-                  case "end":
-                    return t.stop();
-                }
-            }, t, this, [[4, 13]]);
-          }));
-          return function(e) {
-            return t.apply(this, arguments);
-          };
-        }(), n(2)),
-        h = n(11),
-        v = n(10),
-        m = n(29);
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t && t.__esModule ? t : {default: t};
-    }
-    Object.defineProperty(e, "__esModule", {value: !0}), e.toMountPromise = void 0;
-    var o = n(13),
-        i = r(o),
-        u = n(12),
-        a = r(u),
-        c = (e.toMountPromise = function() {
-          var t = (0, a.default)(i.default.mark(function t(e) {
-            return i.default.wrap(function(t) {
-              for (; ; )
-                switch (t.prev = t.next) {
-                  case 0:
-                    if (e.status === c.NOT_MOUNTED) {
-                      t.next = 2;
-                      break;
-                    }
-                    return t.abrupt("return", e);
-                  case 2:
-                    return d || (window.dispatchEvent(new p.default("single-spa:before-first-mount")), d = !0), t.prev = 3, t.next = 6, (0, f.reasonableTime)(e.mount({childAppName: e.name}), "Mounting application '" + e.name + "'", e.timeouts.mount);
-                  case 6:
-                    e.status = c.MOUNTED, t.next = 13;
-                    break;
-                  case 9:
-                    t.prev = 9, t.t0 = t.catch(3), (0, s.handleChildAppError)(t.t0, e), e.status = c.SKIP_BECAUSE_BROKEN;
-                  case 13:
-                    return h || (window.dispatchEvent(new p.default("single-spa:first-mount")), h = !0), t.abrupt("return", e);
-                  case 15:
-                  case "end":
-                    return t.stop();
-                }
-            }, t, this, [[3, 9]]);
-          }));
-          return function(e) {
-            return t.apply(this, arguments);
-          };
-        }(), n(2)),
-        s = n(10),
-        f = n(11),
-        l = n(41),
-        p = r(l),
-        d = !1,
-        h = !1;
-  }, function(t, e, n) {
-    t.exports = {
-      default: n(73),
-      __esModule: !0
-    };
-  }, function(t, e, n) {
-    t.exports = {
-      default: n(74),
-      __esModule: !0
-    };
-  }, function(t, e, n) {
-    t.exports = {
-      default: n(75),
-      __esModule: !0
-    };
-  }, function(t, e, n) {
-    t.exports = {
-      default: n(76),
-      __esModule: !0
-    };
-  }, function(t, e, n) {
-    "use strict";
-    e.__esModule = !0;
-    var r = n(67),
-        o = function(t) {
-          return t && t.__esModule ? t : {default: t};
-        }(r);
-    e.default = o.default || function(t) {
-      for (var e = 1; e < arguments.length; e++) {
-        var n = arguments[e];
-        for (var r in n)
-          Object.prototype.hasOwnProperty.call(n, r) && (t[r] = n[r]);
-      }
-      return t;
-    };
-  }, function(t, e, n) {
-    "use strict";
-    function r(t) {
-      return t && t.__esModule ? t : {default: t};
-    }
-    e.__esModule = !0;
-    var o = n(70),
-        i = r(o),
-        u = n(69),
-        a = r(u),
-        c = "function" == typeof a.default && "symbol" == typeof i.default ? function(t) {
-          return typeof t;
-        } : function(t) {
-          return t && "function" == typeof a.default && t.constructor === a.default && t !== a.default.prototype ? "symbol" : typeof t;
-        };
-    e.default = "function" == typeof a.default && "symbol" === c(i.default) ? function(t) {
-      return void 0 === t ? "undefined" : c(t);
-    } : function(t) {
-      return t && "function" == typeof a.default && t.constructor === a.default && t !== a.default.prototype ? "symbol" : void 0 === t ? "undefined" : c(t);
-    };
-  }, function(t, e, n) {
-    n(104), t.exports = n(3).Object.assign;
-  }, function(t, e, n) {
-    n(60), n(61), n(62), n(105), t.exports = n(3).Promise;
-  }, function(t, e, n) {
-    n(106), n(60), n(107), n(108), t.exports = n(3).Symbol;
-  }, function(t, e, n) {
-    n(61), n(62), t.exports = n(40).f("iterator");
-  }, function(t, e) {
-    t.exports = function() {};
-  }, function(t, e) {
-    t.exports = function(t, e, n, r) {
-      if (!(t instanceof e) || void 0 !== r && r in t)
-        throw TypeError(n + ": incorrect invocation!");
-      return t;
-    };
-  }, function(t, e, n) {
-    var r = n(9),
-        o = n(58),
-        i = n(101);
-    t.exports = function(t) {
-      return function(e, n, u) {
-        var a,
-            c = r(e),
-            s = o(c.length),
-            f = i(u, s);
-        if (t && n != n) {
-          for (; s > f; )
-            if ((a = c[f++]) != a)
-              return !0;
-        } else
-          for (; s > f; f++)
-            if ((t || f in c) && c[f] === n)
-              return t || f || 0;
-        return !t && -1;
-      };
-    };
-  }, function(t, e, n) {
-    var r = n(18),
-        o = n(34),
-        i = n(23);
-    t.exports = function(t) {
-      var e = r(t),
-          n = o.f;
-      if (n)
-        for (var u,
-            a = n(t),
-            c = i.f,
-            s = 0; a.length > s; )
-          c.call(t, u = a[s++]) && e.push(u);
-      return e;
-    };
-  }, function(t, e, n) {
-    var r = n(20),
-        o = n(85),
-        i = n(83),
-        u = n(4),
-        a = n(58),
-        c = n(102),
-        s = {},
-        f = {},
-        e = t.exports = function(t, e, n, l, p) {
-          var d,
-              h,
-              v,
-              m,
-              y = p ? function() {
-                return t;
-              } : c(t),
-              g = r(n, l, e ? 2 : 1),
-              b = 0;
-          if ("function" != typeof y)
-            throw TypeError(t + " is not iterable!");
-          if (i(y)) {
-            for (d = a(t.length); d > b; b++)
-              if ((m = e ? g(u(h = t[b])[0], h[1]) : g(t[b])) === s || m === f)
-                return m;
-          } else
-            for (v = y.call(t); !(h = v.next()).done; )
-              if ((m = o(v, g, h.value, e)) === s || m === f)
-                return m;
-        };
-    e.BREAK = s, e.RETURN = f;
-  }, function(t, e) {
-    t.exports = function(t, e, n) {
-      var r = void 0 === n;
-      switch (e.length) {
-        case 0:
-          return r ? t() : t.call(n);
-        case 1:
-          return r ? t(e[0]) : t.call(n, e[0]);
-        case 2:
-          return r ? t(e[0], e[1]) : t.call(n, e[0], e[1]);
-        case 3:
-          return r ? t(e[0], e[1], e[2]) : t.call(n, e[0], e[1], e[2]);
-        case 4:
-          return r ? t(e[0], e[1], e[2], e[3]) : t.call(n, e[0], e[1], e[2], e[3]);
-      }
-      return t.apply(n, e);
-    };
-  }, function(t, e, n) {
-    var r = n(17),
-        o = n(0)("iterator"),
-        i = Array.prototype;
-    t.exports = function(t) {
-      return void 0 !== t && (r.Array === t || i[o] === t);
-    };
-  }, function(t, e, n) {
-    var r = n(14);
-    t.exports = Array.isArray || function(t) {
-      return "Array" == r(t);
-    };
-  }, function(t, e, n) {
-    var r = n(4);
-    t.exports = function(t, e, n, o) {
-      try {
-        return o ? e(r(n)[0], n[1]) : e(n);
-      } catch (e) {
-        var i = t.return;
-        throw void 0 !== i && r(i.call(t)), e;
-      }
-    };
-  }, function(t, e, n) {
-    "use strict";
-    var r = n(53),
-        o = n(24),
-        i = n(25),
-        u = {};
-    n(7)(u, n(0)("iterator"), function() {
-      return this;
-    }), t.exports = function(t, e, n) {
-      t.prototype = r(u, {next: o(1, n)}), i(t, e + " Iterator");
-    };
-  }, function(t, e, n) {
-    var r = n(0)("iterator"),
-        o = !1;
-    try {
-      var i = [7][r]();
-      i.return = function() {
-        o = !0;
-      }, Array.from(i, function() {
-        throw 2;
-      });
-    } catch (t) {}
-    t.exports = function(t, e) {
-      if (!e && !o)
-        return !1;
-      var n = !1;
-      try {
-        var i = [7],
-            u = i[r]();
-        u.next = function() {
-          return {done: n = !0};
-        }, i[r] = function() {
-          return u;
-        }, t(i);
-      } catch (t) {}
-      return n;
-    };
-  }, function(t, e) {
-    t.exports = function(t, e) {
-      return {
-        value: e,
-        done: !!t
-      };
-    };
-  }, function(t, e, n) {
-    var r = n(18),
-        o = n(9);
-    t.exports = function(t, e) {
-      for (var n,
-          i = o(t),
-          u = r(i),
-          a = u.length,
-          c = 0; a > c; )
-        if (i[n = u[c++]] === e)
-          return n;
-    };
-  }, function(t, e, n) {
-    var r = n(26)("meta"),
-        o = n(16),
-        i = n(6),
-        u = n(8).f,
-        a = 0,
-        c = Object.isExtensible || function() {
-          return !0;
-        },
-        s = !n(15)(function() {
-          return c(Object.preventExtensions({}));
-        }),
-        f = function(t) {
-          u(t, r, {value: {
-              i: "O" + ++a,
-              w: {}
-            }});
-        },
-        l = function(t, e) {
-          if (!o(t))
-            return "symbol" == typeof t ? t : ("string" == typeof t ? "S" : "P") + t;
-          if (!i(t, r)) {
-            if (!c(t))
-              return "F";
-            if (!e)
-              return "E";
-            f(t);
-          }
-          return t[r].i;
-        },
-        p = function(t, e) {
-          if (!i(t, r)) {
-            if (!c(t))
-              return !0;
-            if (!e)
-              return !1;
-            f(t);
-          }
-          return t[r].w;
-        },
-        d = function(t) {
-          return s && h.NEED && c(t) && !i(t, r) && f(t), t;
-        },
-        h = t.exports = {
-          KEY: r,
-          NEED: !1,
-          fastKey: l,
-          getWeak: p,
-          onFreeze: d
-        };
-  }, function(t, e, n) {
-    var r = n(1),
-        o = n(57).set,
-        i = r.MutationObserver || r.WebKitMutationObserver,
-        u = r.process,
-        a = r.Promise,
-        c = "process" == n(14)(u);
-    t.exports = function() {
-      var t,
-          e,
-          n,
-          s = function() {
-            var r,
-                o;
-            for (c && (r = u.domain) && r.exit(); t; ) {
-              o = t.fn, t = t.next;
-              try {
-                o();
-              } catch (r) {
-                throw t ? n() : e = void 0, r;
-              }
-            }
-            e = void 0, r && r.enter();
-          };
-      if (c)
-        n = function() {
-          u.nextTick(s);
-        };
-      else if (i) {
-        var f = !0,
-            l = document.createTextNode("");
-        new i(s).observe(l, {characterData: !0}), n = function() {
-          l.data = f = !f;
-        };
-      } else if (a && a.resolve) {
-        var p = a.resolve();
-        n = function() {
-          p.then(s);
-        };
-      } else
-        n = function() {
-          o.call(r, s);
-        };
-      return function(r) {
-        var o = {
-          fn: r,
-          next: void 0
-        };
-        e && (e.next = o), t || (t = o, n()), e = o;
-      };
-    };
-  }, function(t, e, n) {
-    "use strict";
-    var r = n(18),
-        o = n(34),
-        i = n(23),
-        u = n(59),
-        a = n(51),
-        c = Object.assign;
-    t.exports = !c || n(15)(function() {
-      var t = {},
-          e = {},
-          n = Symbol(),
-          r = "abcdefghijklmnopqrst";
-      return t[n] = 7, r.split("").forEach(function(t) {
-        e[t] = t;
-      }), 7 != c({}, t)[n] || Object.keys(c({}, e)).join("") != r;
-    }) ? function(t, e) {
-      for (var n = u(t),
-          c = arguments.length,
-          s = 1,
-          f = o.f,
-          l = i.f; c > s; )
-        for (var p,
-            d = a(arguments[s++]),
-            h = f ? r(d).concat(f(d)) : r(d),
-            v = h.length,
-            m = 0; v > m; )
-          l.call(d, p = h[m++]) && (n[p] = d[p]);
-      return n;
-    } : c;
-  }, function(t, e, n) {
-    var r = n(8),
-        o = n(4),
-        i = n(18);
-    t.exports = n(5) ? Object.defineProperties : function(t, e) {
-      o(t);
-      for (var n,
-          u = i(e),
-          a = u.length,
-          c = 0; a > c; )
-        r.f(t, n = u[c++], e[n]);
-      return t;
-    };
-  }, function(t, e, n) {
-    var r = n(23),
-        o = n(24),
-        i = n(9),
-        u = n(38),
-        a = n(6),
-        c = n(50),
-        s = Object.getOwnPropertyDescriptor;
-    e.f = n(5) ? s : function(t, e) {
-      if (t = i(t), e = u(e, !0), c)
-        try {
-          return s(t, e);
-        } catch (t) {}
-      if (a(t, e))
-        return o(!r.f.call(t, e), t[e]);
-    };
-  }, function(t, e, n) {
-    var r = n(9),
-        o = n(54).f,
-        i = {}.toString,
-        u = "object" == typeof window && window && Object.getOwnPropertyNames ? Object.getOwnPropertyNames(window) : [],
-        a = function(t) {
-          try {
-            return o(t);
-          } catch (t) {
-            return u.slice();
-          }
-        };
-    t.exports.f = function(t) {
-      return u && "[object Window]" == i.call(t) ? a(t) : o(r(t));
-    };
-  }, function(t, e, n) {
-    var r = n(6),
-        o = n(59),
-        i = n(35)("IE_PROTO"),
-        u = Object.prototype;
-    t.exports = Object.getPrototypeOf || function(t) {
-      return t = o(t), r(t, i) ? t[i] : "function" == typeof t.constructor && t instanceof t.constructor ? t.constructor.prototype : t instanceof Object ? u : null;
-    };
-  }, function(t, e, n) {
-    var r = n(7);
-    t.exports = function(t, e, n) {
-      for (var o in e)
-        n && t[o] ? t[o] = e[o] : r(t, o, e[o]);
-      return t;
-    };
-  }, function(t, e, n) {
-    "use strict";
-    var r = n(1),
-        o = n(3),
-        i = n(8),
-        u = n(5),
-        a = n(0)("species");
-    t.exports = function(t) {
-      var e = "function" == typeof o[t] ? o[t] : r[t];
-      u && e && !e[a] && i.f(e, a, {
-        configurable: !0,
-        get: function() {
-          return this;
-        }
-      });
-    };
-  }, function(t, e, n) {
-    var r = n(4),
-        o = n(30),
-        i = n(0)("species");
-    t.exports = function(t, e) {
-      var n,
-          u = r(t).constructor;
-      return void 0 === u || void 0 == (n = r(u)[i]) ? e : o(n);
-    };
-  }, function(t, e, n) {
-    var r = n(37),
-        o = n(31);
-    t.exports = function(t) {
-      return function(e, n) {
-        var i,
-            u,
-            a = String(o(e)),
-            c = r(n),
-            s = a.length;
-        return c < 0 || c >= s ? t ? "" : void 0 : (i = a.charCodeAt(c), i < 55296 || i > 56319 || c + 1 === s || (u = a.charCodeAt(c + 1)) < 56320 || u > 57343 ? t ? a.charAt(c) : i : t ? a.slice(c, c + 2) : u - 56320 + (i - 55296 << 10) + 65536);
-      };
-    };
-  }, function(t, e, n) {
-    var r = n(37),
-        o = Math.max,
-        i = Math.min;
-    t.exports = function(t, e) {
-      return t = r(t), t < 0 ? o(t + e, 0) : i(t, e);
-    };
-  }, function(t, e, n) {
-    var r = n(48),
-        o = n(0)("iterator"),
-        i = n(17);
-    t.exports = n(3).getIteratorMethod = function(t) {
-      if (void 0 != t)
-        return t[o] || t["@@iterator"] || i[r(t)];
-    };
-  }, function(t, e, n) {
-    "use strict";
-    var r = n(77),
-        o = n(88),
-        i = n(17),
-        u = n(9);
-    t.exports = n(52)(Array, "Array", function(t, e) {
-      this._t = u(t), this._i = 0, this._k = e;
-    }, function() {
-      var t = this._t,
-          e = this._k,
-          n = this._i++;
-      return !t || n >= t.length ? (this._t = void 0, o(1)) : "keys" == e ? o(0, n) : "values" == e ? o(0, t[n]) : o(0, [n, t[n]]);
-    }, "values"), i.Arguments = i.Array, r("keys"), r("values"), r("entries");
-  }, function(t, e, n) {
-    var r = n(21);
-    r(r.S + r.F, "Object", {assign: n(92)});
-  }, function(t, e, n) {
-    "use strict";
-    var r,
-        o,
-        i,
-        u = n(22),
-        a = n(1),
-        c = n(20),
-        s = n(48),
-        f = n(21),
-        l = n(16),
-        p = n(30),
-        d = n(78),
-        h = n(81),
-        v = n(99),
-        m = n(57).set,
-        y = n(91)(),
-        g = a.TypeError,
-        b = a.process,
-        w = a.Promise,
-        b = a.process,
-        O = "process" == s(b),
-        _ = function() {},
-        x = !!function() {
-          try {
-            var t = w.resolve(1),
-                e = (t.constructor = {})[n(0)("species")] = function(t) {
-                  t(_, _);
-                };
-            return (O || "function" == typeof PromiseRejectionEvent) && t.then(_) instanceof e;
-          } catch (t) {}
-        }(),
-        E = function(t, e) {
-          return t === e || t === w && e === i;
-        },
-        T = function(t) {
-          var e;
-          return !(!l(t) || "function" != typeof(e = t.then)) && e;
-        },
-        P = function(t) {
-          return E(w, t) ? new N(t) : new o(t);
-        },
-        N = o = function(t) {
-          var e,
-              n;
-          this.promise = new t(function(t, r) {
-            if (void 0 !== e || void 0 !== n)
-              throw g("Bad Promise constructor");
-            e = t, n = r;
-          }), this.resolve = p(e), this.reject = p(n);
-        },
-        j = function(t) {
-          try {
-            t();
-          } catch (t) {
-            return {error: t};
-          }
-        },
-        A = function(t, e) {
-          if (!t._n) {
-            t._n = !0;
-            var n = t._c;
-            y(function() {
-              for (var r = t._v,
-                  o = 1 == t._s,
-                  i = 0; n.length > i; )
-                !function(e) {
-                  var n,
-                      i,
-                      u = o ? e.ok : e.fail,
-                      a = e.resolve,
-                      c = e.reject,
-                      s = e.domain;
-                  try {
-                    u ? (o || (2 == t._h && L(t), t._h = 1), !0 === u ? n = r : (s && s.enter(), n = u(r), s && s.exit()), n === e.promise ? c(g("Promise-chain cycle")) : (i = T(n)) ? i.call(n, a, c) : a(n)) : c(r);
-                  } catch (t) {
-                    c(t);
-                  }
-                }(n[i++]);
-              t._c = [], t._n = !1, e && !t._h && S(t);
-            });
-          }
-        },
-        S = function(t) {
-          m.call(a, function() {
-            var e,
-                n,
-                r,
-                o = t._v;
-            if (M(t) && (e = j(function() {
-              O ? b.emit("unhandledRejection", o, t) : (n = a.onunhandledrejection) ? n({
-                promise: t,
-                reason: o
-              }) : (r = a.console) && r.error && r.error("Unhandled promise rejection", o);
-            }), t._h = O || M(t) ? 2 : 1), t._a = void 0, e)
-              throw e.error;
-          });
-        },
-        M = function(t) {
-          if (1 == t._h)
-            return !1;
-          for (var e,
-              n = t._a || t._c,
-              r = 0; n.length > r; )
-            if (e = n[r++], e.fail || !M(e.promise))
-              return !1;
-          return !0;
-        },
-        L = function(t) {
-          m.call(a, function() {
-            var e;
-            O ? b.emit("rejectionHandled", t) : (e = a.onrejectionhandled) && e({
-              promise: t,
-              reason: t._v
-            });
-          });
-        },
-        U = function(t) {
-          var e = this;
-          e._d || (e._d = !0, e = e._w || e, e._v = t, e._s = 2, e._a || (e._a = e._c.slice()), A(e, !0));
-        },
-        k = function(t) {
-          var e,
-              n = this;
-          if (!n._d) {
-            n._d = !0, n = n._w || n;
-            try {
-              if (n === t)
-                throw g("Promise can't be resolved itself");
-              (e = T(t)) ? y(function() {
-                var r = {
-                  _w: n,
-                  _d: !1
-                };
-                try {
-                  e.call(t, c(k, r, 1), c(U, r, 1));
-                } catch (t) {
-                  U.call(r, t);
-                }
-              }) : (n._v = t, n._s = 1, A(n, !1));
-            } catch (t) {
-              U.call({
-                _w: n,
-                _d: !1
-              }, t);
-            }
-          }
-        };
-    x || (w = function(t) {
-      d(this, w, "Promise", "_h"), p(t), r.call(this);
-      try {
-        t(c(k, this, 1), c(U, this, 1));
-      } catch (t) {
-        U.call(this, t);
-      }
-    }, r = function(t) {
-      this._c = [], this._a = void 0, this._s = 0, this._d = !1, this._v = void 0, this._h = 0, this._n = !1;
-    }, r.prototype = n(97)(w.prototype, {
-      then: function(t, e) {
-        var n = P(v(this, w));
-        return n.ok = "function" != typeof t || t, n.fail = "function" == typeof e && e, n.domain = O ? b.domain : void 0, this._c.push(n), this._a && this._a.push(n), this._s && A(this, !1), n.promise;
-      },
-      catch: function(t) {
-        return this.then(void 0, t);
-      }
-    }), N = function() {
-      var t = new r;
-      this.promise = t, this.resolve = c(k, t, 1), this.reject = c(U, t, 1);
-    }), f(f.G + f.W + f.F * !x, {Promise: w}), n(25)(w, "Promise"), n(98)("Promise"), i = n(3).Promise, f(f.S + f.F * !x, "Promise", {reject: function(t) {
-        var e = P(this);
-        return (0, e.reject)(t), e.promise;
-      }}), f(f.S + f.F * (u || !x), "Promise", {resolve: function(t) {
-        if (t instanceof w && E(t.constructor, this))
-          return t;
-        var e = P(this);
-        return (0, e.resolve)(t), e.promise;
-      }}), f(f.S + f.F * !(x && n(87)(function(t) {
-      w.all(t).catch(_);
-    })), "Promise", {
-      all: function(t) {
-        var e = this,
-            n = P(e),
-            r = n.resolve,
-            o = n.reject,
-            i = j(function() {
-              var n = [],
-                  i = 0,
-                  u = 1;
-              h(t, !1, function(t) {
-                var a = i++,
-                    c = !1;
-                n.push(void 0), u++, e.resolve(t).then(function(t) {
-                  c || (c = !0, n[a] = t, --u || r(n));
-                }, o);
-              }), --u || r(n);
-            });
-        return i && o(i.error), n.promise;
-      },
-      race: function(t) {
-        var e = this,
-            n = P(e),
-            r = n.reject,
-            o = j(function() {
-              h(t, !1, function(t) {
-                e.resolve(t).then(n.resolve, r);
-              });
-            });
-        return o && r(o.error), n.promise;
-      }
-    });
-  }, function(t, e, n) {
-    "use strict";
-    var r = n(1),
-        o = n(6),
-        i = n(5),
-        u = n(21),
-        a = n(56),
-        c = n(90).KEY,
-        s = n(15),
-        f = n(36),
-        l = n(25),
-        p = n(26),
-        d = n(0),
-        h = n(40),
-        v = n(39),
-        m = n(89),
-        y = n(80),
-        g = n(84),
-        b = n(4),
-        w = n(9),
-        O = n(38),
-        _ = n(24),
-        x = n(53),
-        E = n(95),
-        T = n(94),
-        P = n(8),
-        N = n(18),
-        j = T.f,
-        A = P.f,
-        S = E.f,
-        M = r.Symbol,
-        L = r.JSON,
-        U = L && L.stringify,
-        k = d("_hidden"),
-        D = d("toPrimitive"),
-        C = {}.propertyIsEnumerable,
-        I = f("symbol-registry"),
-        B = f("symbols"),
-        R = f("op-symbols"),
-        G = Object.prototype,
-        F = "function" == typeof M,
-        K = r.QObject,
-        W = !K || !K.prototype || !K.prototype.findChild,
-        q = i && s(function() {
-          return 7 != x(A({}, "a", {get: function() {
-              return A(this, "a", {value: 7}).a;
-            }})).a;
-        }) ? function(t, e, n) {
-          var r = j(G, e);
-          r && delete G[e], A(t, e, n), r && t !== G && A(G, e, r);
-        } : A,
-        J = function(t) {
-          var e = B[t] = x(M.prototype);
-          return e._k = t, e;
-        },
-        Q = F && "symbol" == typeof M.iterator ? function(t) {
-          return "symbol" == typeof t;
-        } : function(t) {
-          return t instanceof M;
-        },
-        Y = function(t, e, n) {
-          return t === G && Y(R, e, n), b(t), e = O(e, !0), b(n), o(B, e) ? (n.enumerable ? (o(t, k) && t[k][e] && (t[k][e] = !1), n = x(n, {enumerable: _(0, !1)})) : (o(t, k) || A(t, k, _(1, {})), t[k][e] = !0), q(t, e, n)) : A(t, e, n);
-        },
-        $ = function(t, e) {
-          b(t);
-          for (var n,
-              r = y(e = w(e)),
-              o = 0,
-              i = r.length; i > o; )
-            Y(t, n = r[o++], e[n]);
-          return t;
-        },
-        z = function(t, e) {
-          return void 0 === e ? x(t) : $(x(t), e);
-        },
-        V = function(t) {
-          var e = C.call(this, t = O(t, !0));
-          return !(this === G && o(B, t) && !o(R, t)) && (!(e || !o(this, t) || !o(B, t) || o(this, k) && this[k][t]) || e);
-        },
-        H = function(t, e) {
-          if (t = w(t), e = O(e, !0), t !== G || !o(B, e) || o(R, e)) {
-            var n = j(t, e);
-            return !n || !o(B, e) || o(t, k) && t[k][e] || (n.enumerable = !0), n;
-          }
-        },
-        X = function(t) {
-          for (var e,
-              n = S(w(t)),
-              r = [],
-              i = 0; n.length > i; )
-            o(B, e = n[i++]) || e == k || e == c || r.push(e);
-          return r;
-        },
-        Z = function(t) {
-          for (var e,
-              n = t === G,
-              r = S(n ? R : w(t)),
-              i = [],
-              u = 0; r.length > u; )
-            !o(B, e = r[u++]) || n && !o(G, e) || i.push(B[e]);
-          return i;
-        };
-    F || (M = function() {
-      if (this instanceof M)
-        throw TypeError("Symbol is not a constructor!");
-      var t = p(arguments.length > 0 ? arguments[0] : void 0),
-          e = function(n) {
-            this === G && e.call(R, n), o(this, k) && o(this[k], t) && (this[k][t] = !1), q(this, t, _(1, n));
-          };
-      return i && W && q(G, t, {
-        configurable: !0,
-        set: e
-      }), J(t);
-    }, a(M.prototype, "toString", function() {
-      return this._k;
-    }), T.f = H, P.f = Y, n(54).f = E.f = X, n(23).f = V, n(34).f = Z, i && !n(22) && a(G, "propertyIsEnumerable", V, !0), h.f = function(t) {
-      return J(d(t));
-    }), u(u.G + u.W + u.F * !F, {Symbol: M});
-    for (var tt = "hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables".split(","),
-        et = 0; tt.length > et; )
-      d(tt[et++]);
-    for (var tt = N(d.store),
-        et = 0; tt.length > et; )
-      v(tt[et++]);
-    u(u.S + u.F * !F, "Symbol", {
-      for: function(t) {
-        return o(I, t += "") ? I[t] : I[t] = M(t);
-      },
-      keyFor: function(t) {
-        if (Q(t))
-          return m(I, t);
-        throw TypeError(t + " is not a symbol!");
-      },
-      useSetter: function() {
-        W = !0;
-      },
-      useSimple: function() {
-        W = !1;
-      }
-    }), u(u.S + u.F * !F, "Object", {
-      create: z,
-      defineProperty: Y,
-      defineProperties: $,
-      getOwnPropertyDescriptor: H,
-      getOwnPropertyNames: X,
-      getOwnPropertySymbols: Z
-    }), L && u(u.S + u.F * (!F || s(function() {
-      var t = M();
-      return "[null]" != U([t]) || "{}" != U({a: t}) || "{}" != U(Object(t));
-    })), "JSON", {stringify: function(t) {
-        if (void 0 !== t && !Q(t)) {
-          for (var e,
-              n,
-              r = [t],
-              o = 1; arguments.length > o; )
-            r.push(arguments[o++]);
-          return e = r[1], "function" == typeof e && (n = e), !n && g(e) || (e = function(t, e) {
-            if (n && (e = n.call(this, t, e)), !Q(e))
-              return e;
-          }), r[1] = e, U.apply(L, r);
-        }
-      }}), M.prototype[D] || n(7)(M.prototype, D, M.prototype.valueOf), l(M, "Symbol"), l(Math, "Math", !0), l(r.JSON, "JSON", !0);
-  }, function(t, e, n) {
-    n(39)("asyncIterator");
-  }, function(t, e, n) {
-    n(39)("observable");
-  }, function(t, e, n) {
-    (function(e) {
-      var r = "object" == typeof e ? e : "object" == typeof window ? window : "object" == typeof self ? self : this,
-          o = r.regeneratorRuntime && Object.getOwnPropertyNames(r).indexOf("regeneratorRuntime") >= 0,
-          i = o && r.regeneratorRuntime;
-      if (r.regeneratorRuntime = void 0, t.exports = n(110), o)
-        r.regeneratorRuntime = i;
-      else
-        try {
-          delete r.regeneratorRuntime;
-        } catch (t) {
-          r.regeneratorRuntime = void 0;
-        }
-    }).call(e, n(42));
-  }, function(t, e, n) {
-    (function(e) {
-      !function(e) {
-        "use strict";
-        function n(t, e, n, r) {
-          var i = e && e.prototype instanceof o ? e : o,
-              u = Object.create(i.prototype),
-              a = new d(r || []);
-          return u._invoke = s(t, n, a), u;
-        }
-        function r(t, e, n) {
-          try {
-            return {
-              type: "normal",
-              arg: t.call(e, n)
-            };
-          } catch (t) {
-            return {
-              type: "throw",
-              arg: t
-            };
-          }
-        }
-        function o() {}
-        function i() {}
-        function u() {}
-        function a(t) {
-          ["next", "throw", "return"].forEach(function(e) {
-            t[e] = function(t) {
-              return this._invoke(e, t);
-            };
-          });
-        }
-        function c(t) {
-          function n(e, o, i, u) {
-            var a = r(t[e], t, o);
-            if ("throw" !== a.type) {
-              var c = a.arg,
-                  s = c.value;
-              return s && "object" == typeof s && g.call(s, "__await") ? Promise.resolve(s.__await).then(function(t) {
-                n("next", t, i, u);
-              }, function(t) {
-                n("throw", t, i, u);
-              }) : Promise.resolve(s).then(function(t) {
-                c.value = t, i(c);
-              }, u);
-            }
-            u(a.arg);
-          }
-          function o(t, e) {
-            function r() {
-              return new Promise(function(r, o) {
-                n(t, e, r, o);
-              });
-            }
-            return i = i ? i.then(r, r) : r();
-          }
-          "object" == typeof e.process && e.process.domain && (n = e.process.domain.bind(n));
-          var i;
-          this._invoke = o;
-        }
-        function s(t, e, n) {
-          var o = T;
-          return function(i, u) {
-            if (o === N)
-              throw new Error("Generator is already running");
-            if (o === j) {
-              if ("throw" === i)
-                throw u;
-              return v();
-            }
-            for (n.method = i, n.arg = u; ; ) {
-              var a = n.delegate;
-              if (a) {
-                var c = f(a, n);
-                if (c) {
-                  if (c === A)
-                    continue;
-                  return c;
-                }
-              }
-              if ("next" === n.method)
-                n.sent = n._sent = n.arg;
-              else if ("throw" === n.method) {
-                if (o === T)
-                  throw o = j, n.arg;
-                n.dispatchException(n.arg);
-              } else
-                "return" === n.method && n.abrupt("return", n.arg);
-              o = N;
-              var s = r(t, e, n);
-              if ("normal" === s.type) {
-                if (o = n.done ? j : P, s.arg === A)
-                  continue;
-                return {
-                  value: s.arg,
-                  done: n.done
-                };
-              }
-              "throw" === s.type && (o = j, n.method = "throw", n.arg = s.arg);
-            }
-          };
-        }
-        function f(t, e) {
-          var n = t.iterator[e.method];
-          if (n === m) {
-            if (e.delegate = null, "throw" === e.method) {
-              if (t.iterator.return && (e.method = "return", e.arg = m, f(t, e), "throw" === e.method))
-                return A;
-              e.method = "throw", e.arg = new TypeError("The iterator does not provide a 'throw' method");
-            }
-            return A;
-          }
-          var o = r(n, t.iterator, e.arg);
-          if ("throw" === o.type)
-            return e.method = "throw", e.arg = o.arg, e.delegate = null, A;
-          var i = o.arg;
-          return i ? i.done ? (e[t.resultName] = i.value, e.next = t.nextLoc, "return" !== e.method && (e.method = "next", e.arg = m), e.delegate = null, A) : i : (e.method = "throw", e.arg = new TypeError("iterator result is not an object"), e.delegate = null, A);
-        }
-        function l(t) {
-          var e = {tryLoc: t[0]};
-          1 in t && (e.catchLoc = t[1]), 2 in t && (e.finallyLoc = t[2], e.afterLoc = t[3]), this.tryEntries.push(e);
-        }
-        function p(t) {
-          var e = t.completion || {};
-          e.type = "normal", delete e.arg, t.completion = e;
-        }
-        function d(t) {
-          this.tryEntries = [{tryLoc: "root"}], t.forEach(l, this), this.reset(!0);
-        }
-        function h(t) {
-          if (t) {
-            var e = t[w];
-            if (e)
-              return e.call(t);
-            if ("function" == typeof t.next)
-              return t;
-            if (!isNaN(t.length)) {
-              var n = -1,
-                  r = function e() {
-                    for (; ++n < t.length; )
-                      if (g.call(t, n))
-                        return e.value = t[n], e.done = !1, e;
-                    return e.value = m, e.done = !0, e;
-                  };
-              return r.next = r;
-            }
-          }
-          return {next: v};
-        }
-        function v() {
-          return {
-            value: m,
-            done: !0
-          };
-        }
-        var m,
-            y = Object.prototype,
-            g = y.hasOwnProperty,
-            b = "function" == typeof Symbol ? Symbol : {},
-            w = b.iterator || "@@iterator",
-            O = b.asyncIterator || "@@asyncIterator",
-            _ = b.toStringTag || "@@toStringTag",
-            x = "object" == typeof t,
-            E = e.regeneratorRuntime;
-        if (E)
-          return void(x && (t.exports = E));
-        E = e.regeneratorRuntime = x ? t.exports : {}, E.wrap = n;
-        var T = "suspendedStart",
-            P = "suspendedYield",
-            N = "executing",
-            j = "completed",
-            A = {},
-            S = {};
-        S[w] = function() {
-          return this;
-        };
-        var M = Object.getPrototypeOf,
-            L = M && M(M(h([])));
-        L && L !== y && g.call(L, w) && (S = L);
-        var U = u.prototype = o.prototype = Object.create(S);
-        i.prototype = U.constructor = u, u.constructor = i, u[_] = i.displayName = "GeneratorFunction", E.isGeneratorFunction = function(t) {
-          var e = "function" == typeof t && t.constructor;
-          return !!e && (e === i || "GeneratorFunction" === (e.displayName || e.name));
-        }, E.mark = function(t) {
-          return Object.setPrototypeOf ? Object.setPrototypeOf(t, u) : (t.__proto__ = u, _ in t || (t[_] = "GeneratorFunction")), t.prototype = Object.create(U), t;
-        }, E.awrap = function(t) {
-          return {__await: t};
-        }, a(c.prototype), c.prototype[O] = function() {
-          return this;
-        }, E.AsyncIterator = c, E.async = function(t, e, r, o) {
-          var i = new c(n(t, e, r, o));
-          return E.isGeneratorFunction(e) ? i : i.next().then(function(t) {
-            return t.done ? t.value : i.next();
-          });
-        }, a(U), U[_] = "Generator", U[w] = function() {
-          return this;
-        }, U.toString = function() {
-          return "[object Generator]";
-        }, E.keys = function(t) {
-          var e = [];
-          for (var n in t)
-            e.push(n);
-          return e.reverse(), function n() {
-            for (; e.length; ) {
-              var r = e.pop();
-              if (r in t)
-                return n.value = r, n.done = !1, n;
-            }
-            return n.done = !0, n;
-          };
-        }, E.values = h, d.prototype = {
-          constructor: d,
-          reset: function(t) {
-            if (this.prev = 0, this.next = 0, this.sent = this._sent = m, this.done = !1, this.delegate = null, this.method = "next", this.arg = m, this.tryEntries.forEach(p), !t)
-              for (var e in this)
-                "t" === e.charAt(0) && g.call(this, e) && !isNaN(+e.slice(1)) && (this[e] = m);
-          },
-          stop: function() {
-            this.done = !0;
-            var t = this.tryEntries[0],
-                e = t.completion;
-            if ("throw" === e.type)
-              throw e.arg;
-            return this.rval;
-          },
-          dispatchException: function(t) {
-            function e(e, r) {
-              return i.type = "throw", i.arg = t, n.next = e, r && (n.method = "next", n.arg = m), !!r;
-            }
-            if (this.done)
-              throw t;
-            for (var n = this,
-                r = this.tryEntries.length - 1; r >= 0; --r) {
-              var o = this.tryEntries[r],
-                  i = o.completion;
-              if ("root" === o.tryLoc)
-                return e("end");
-              if (o.tryLoc <= this.prev) {
-                var u = g.call(o, "catchLoc"),
-                    a = g.call(o, "finallyLoc");
-                if (u && a) {
-                  if (this.prev < o.catchLoc)
-                    return e(o.catchLoc, !0);
-                  if (this.prev < o.finallyLoc)
-                    return e(o.finallyLoc);
-                } else if (u) {
-                  if (this.prev < o.catchLoc)
-                    return e(o.catchLoc, !0);
-                } else {
-                  if (!a)
-                    throw new Error("try statement without catch or finally");
-                  if (this.prev < o.finallyLoc)
-                    return e(o.finallyLoc);
-                }
-              }
-            }
-          },
-          abrupt: function(t, e) {
-            for (var n = this.tryEntries.length - 1; n >= 0; --n) {
-              var r = this.tryEntries[n];
-              if (r.tryLoc <= this.prev && g.call(r, "finallyLoc") && this.prev < r.finallyLoc) {
-                var o = r;
-                break;
-              }
-            }
-            o && ("break" === t || "continue" === t) && o.tryLoc <= e && e <= o.finallyLoc && (o = null);
-            var i = o ? o.completion : {};
-            return i.type = t, i.arg = e, o ? (this.method = "next", this.next = o.finallyLoc, A) : this.complete(i);
-          },
-          complete: function(t, e) {
-            if ("throw" === t.type)
-              throw t.arg;
-            return "break" === t.type || "continue" === t.type ? this.next = t.arg : "return" === t.type ? (this.rval = this.arg = t.arg, this.method = "return", this.next = "end") : "normal" === t.type && e && (this.next = e), A;
-          },
-          finish: function(t) {
-            for (var e = this.tryEntries.length - 1; e >= 0; --e) {
-              var n = this.tryEntries[e];
-              if (n.finallyLoc === t)
-                return this.complete(n.completion, n.afterLoc), p(n), A;
-            }
-          },
-          catch: function(t) {
-            for (var e = this.tryEntries.length - 1; e >= 0; --e) {
-              var n = this.tryEntries[e];
-              if (n.tryLoc === t) {
-                var r = n.completion;
-                if ("throw" === r.type) {
-                  var o = r.arg;
-                  p(n);
-                }
-                return o;
-              }
-            }
-            throw new Error("illegal catch attempt");
-          },
-          delegateYield: function(t, e, n) {
-            return this.delegate = {
-              iterator: h(t),
-              resultName: e,
-              nextLoc: n
-            }, "next" === this.method && (this.arg = m), A;
-          }
-        };
-      }("object" == typeof e ? e : "object" == typeof window ? window : "object" == typeof self ? self : this);
-    }).call(e, n(42));
-  }, function(t, e, n) {
-    t.exports = n(63);
-  }]);
-});
-
-})();
-(function() {
-var define = System.amdDefine;
-(function(global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@angular/core')) : typeof define === 'function' && define.amd ? define("node_modules/@angular/compiler/bundles/compiler.umd.js", ["exports", "node_modules/@angular/core/bundles/core.umd.js"], factory) : (factory((global.ng = global.ng || {}, global.ng.compiler = global.ng.compiler || {}), global.ng.core));
 }(this, (function(exports, _angular_core) {
   'use strict';
@@ -39163,6 +33168,6024 @@ var define = System.amdDefine;
 })();
 (function() {
 var define = System.amdDefine;
+(function(global, factory) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory() : typeof define === 'function' && define.amd ? define("node_modules/zone.js/dist/zone.js", [], factory) : (factory());
+}(this, (function() {
+  'use strict';
+  var Zone$1 = (function(global) {
+    var performance = global['performance'];
+    function mark(name) {
+      performance && performance['mark'] && performance['mark'](name);
+    }
+    function performanceMeasure(name, label) {
+      performance && performance['measure'] && performance['measure'](name, label);
+    }
+    mark('Zone');
+    if (global['Zone']) {
+      throw new Error('Zone already loaded.');
+    }
+    var Zone = (function() {
+      function Zone(parent, zoneSpec) {
+        this._properties = null;
+        this._parent = parent;
+        this._name = zoneSpec ? zoneSpec.name || 'unnamed' : '<root>';
+        this._properties = zoneSpec && zoneSpec.properties || {};
+        this._zoneDelegate = new ZoneDelegate(this, this._parent && this._parent._zoneDelegate, zoneSpec);
+      }
+      Zone.assertZonePatched = function() {
+        if (global['Promise'] !== patches['ZoneAwarePromise']) {
+          throw new Error('Zone.js has detected that ZoneAwarePromise `(window|global).Promise` ' + 'has been overwritten.\n' + 'Most likely cause is that a Promise polyfill has been loaded ' + 'after Zone.js (Polyfilling Promise api is not necessary when zone.js is loaded. ' + 'If you must load one, do so before loading zone.js.)');
+        }
+      };
+      Object.defineProperty(Zone, "root", {
+        get: function() {
+          var zone = Zone.current;
+          while (zone.parent) {
+            zone = zone.parent;
+          }
+          return zone;
+        },
+        enumerable: true,
+        configurable: true
+      });
+      Object.defineProperty(Zone, "current", {
+        get: function() {
+          return _currentZoneFrame.zone;
+        },
+        enumerable: true,
+        configurable: true
+      });
+      Object.defineProperty(Zone, "currentTask", {
+        get: function() {
+          return _currentTask;
+        },
+        enumerable: true,
+        configurable: true
+      });
+      Zone.__load_patch = function(name, fn) {
+        if (patches.hasOwnProperty(name)) {
+          throw Error('Already loaded patch: ' + name);
+        } else if (!global['__Zone_disable_' + name]) {
+          var perfName = 'Zone:' + name;
+          mark(perfName);
+          patches[name] = fn(global, Zone, _api);
+          performanceMeasure(perfName, perfName);
+        }
+      };
+      Object.defineProperty(Zone.prototype, "parent", {
+        get: function() {
+          return this._parent;
+        },
+        enumerable: true,
+        configurable: true
+      });
+      Object.defineProperty(Zone.prototype, "name", {
+        get: function() {
+          return this._name;
+        },
+        enumerable: true,
+        configurable: true
+      });
+      Zone.prototype.get = function(key) {
+        var zone = this.getZoneWith(key);
+        if (zone)
+          return zone._properties[key];
+      };
+      Zone.prototype.getZoneWith = function(key) {
+        var current = this;
+        while (current) {
+          if (current._properties.hasOwnProperty(key)) {
+            return current;
+          }
+          current = current._parent;
+        }
+        return null;
+      };
+      Zone.prototype.fork = function(zoneSpec) {
+        if (!zoneSpec)
+          throw new Error('ZoneSpec required!');
+        return this._zoneDelegate.fork(this, zoneSpec);
+      };
+      Zone.prototype.wrap = function(callback, source) {
+        if (typeof callback !== 'function') {
+          throw new Error('Expecting function got: ' + callback);
+        }
+        var _callback = this._zoneDelegate.intercept(this, callback, source);
+        var zone = this;
+        return function() {
+          return zone.runGuarded(_callback, this, arguments, source);
+        };
+      };
+      Zone.prototype.run = function(callback, applyThis, applyArgs, source) {
+        if (applyThis === void 0) {
+          applyThis = undefined;
+        }
+        if (applyArgs === void 0) {
+          applyArgs = null;
+        }
+        if (source === void 0) {
+          source = null;
+        }
+        _currentZoneFrame = {
+          parent: _currentZoneFrame,
+          zone: this
+        };
+        try {
+          return this._zoneDelegate.invoke(this, callback, applyThis, applyArgs, source);
+        } finally {
+          _currentZoneFrame = _currentZoneFrame.parent;
+        }
+      };
+      Zone.prototype.runGuarded = function(callback, applyThis, applyArgs, source) {
+        if (applyThis === void 0) {
+          applyThis = null;
+        }
+        if (applyArgs === void 0) {
+          applyArgs = null;
+        }
+        if (source === void 0) {
+          source = null;
+        }
+        _currentZoneFrame = {
+          parent: _currentZoneFrame,
+          zone: this
+        };
+        try {
+          try {
+            return this._zoneDelegate.invoke(this, callback, applyThis, applyArgs, source);
+          } catch (error) {
+            if (this._zoneDelegate.handleError(this, error)) {
+              throw error;
+            }
+          }
+        } finally {
+          _currentZoneFrame = _currentZoneFrame.parent;
+        }
+      };
+      Zone.prototype.runTask = function(task, applyThis, applyArgs) {
+        if (task.zone != this) {
+          throw new Error('A task can only be run in the zone of creation! (Creation: ' + (task.zone || NO_ZONE).name + '; Execution: ' + this.name + ')');
+        }
+        var isNotScheduled = task.state === notScheduled;
+        if (isNotScheduled && task.type === eventTask) {
+          return;
+        }
+        var reEntryGuard = task.state != running;
+        reEntryGuard && task._transitionTo(running, scheduled);
+        task.runCount++;
+        var previousTask = _currentTask;
+        _currentTask = task;
+        _currentZoneFrame = {
+          parent: _currentZoneFrame,
+          zone: this
+        };
+        try {
+          if (task.type == macroTask && task.data && !task.data.isPeriodic) {
+            task.cancelFn = null;
+          }
+          try {
+            return this._zoneDelegate.invokeTask(this, task, applyThis, applyArgs);
+          } catch (error) {
+            if (this._zoneDelegate.handleError(this, error)) {
+              throw error;
+            }
+          }
+        } finally {
+          if (task.state !== notScheduled && task.state !== unknown) {
+            if (task.type == eventTask || (task.data && task.data.isPeriodic)) {
+              reEntryGuard && task._transitionTo(scheduled, running);
+            } else {
+              task.runCount = 0;
+              this._updateTaskCount(task, -1);
+              reEntryGuard && task._transitionTo(notScheduled, running, notScheduled);
+            }
+          }
+          _currentZoneFrame = _currentZoneFrame.parent;
+          _currentTask = previousTask;
+        }
+      };
+      Zone.prototype.scheduleTask = function(task) {
+        if (task.zone && task.zone !== this) {
+          var newZone = this;
+          while (newZone) {
+            if (newZone === task.zone) {
+              throw Error("can not reschedule task to " + this.name + " which is descendants of the original zone " + task.zone.name);
+            }
+            newZone = newZone.parent;
+          }
+        }
+        task._transitionTo(scheduling, notScheduled);
+        var zoneDelegates = [];
+        task._zoneDelegates = zoneDelegates;
+        task._zone = this;
+        try {
+          task = this._zoneDelegate.scheduleTask(this, task);
+        } catch (err) {
+          task._transitionTo(unknown, scheduling, notScheduled);
+          this._zoneDelegate.handleError(this, err);
+          throw err;
+        }
+        if (task._zoneDelegates === zoneDelegates) {
+          this._updateTaskCount(task, 1);
+        }
+        if (task.state == scheduling) {
+          task._transitionTo(scheduled, scheduling);
+        }
+        return task;
+      };
+      Zone.prototype.scheduleMicroTask = function(source, callback, data, customSchedule) {
+        return this.scheduleTask(new ZoneTask(microTask, source, callback, data, customSchedule, null));
+      };
+      Zone.prototype.scheduleMacroTask = function(source, callback, data, customSchedule, customCancel) {
+        return this.scheduleTask(new ZoneTask(macroTask, source, callback, data, customSchedule, customCancel));
+      };
+      Zone.prototype.scheduleEventTask = function(source, callback, data, customSchedule, customCancel) {
+        return this.scheduleTask(new ZoneTask(eventTask, source, callback, data, customSchedule, customCancel));
+      };
+      Zone.prototype.cancelTask = function(task) {
+        if (task.zone != this)
+          throw new Error('A task can only be cancelled in the zone of creation! (Creation: ' + (task.zone || NO_ZONE).name + '; Execution: ' + this.name + ')');
+        task._transitionTo(canceling, scheduled, running);
+        try {
+          this._zoneDelegate.cancelTask(this, task);
+        } catch (err) {
+          task._transitionTo(unknown, canceling);
+          this._zoneDelegate.handleError(this, err);
+          throw err;
+        }
+        this._updateTaskCount(task, -1);
+        task._transitionTo(notScheduled, canceling);
+        task.runCount = 0;
+        return task;
+      };
+      Zone.prototype._updateTaskCount = function(task, count) {
+        var zoneDelegates = task._zoneDelegates;
+        if (count == -1) {
+          task._zoneDelegates = null;
+        }
+        for (var i = 0; i < zoneDelegates.length; i++) {
+          zoneDelegates[i]._updateTaskCount(task.type, count);
+        }
+      };
+      return Zone;
+    }());
+    Zone.__symbol__ = __symbol__;
+    var DELEGATE_ZS = {
+      name: '',
+      onHasTask: function(delegate, _, target, hasTaskState) {
+        return delegate.hasTask(target, hasTaskState);
+      },
+      onScheduleTask: function(delegate, _, target, task) {
+        return delegate.scheduleTask(target, task);
+      },
+      onInvokeTask: function(delegate, _, target, task, applyThis, applyArgs) {
+        return delegate.invokeTask(target, task, applyThis, applyArgs);
+      },
+      onCancelTask: function(delegate, _, target, task) {
+        return delegate.cancelTask(target, task);
+      }
+    };
+    var ZoneDelegate = (function() {
+      function ZoneDelegate(zone, parentDelegate, zoneSpec) {
+        this._taskCounts = {
+          'microTask': 0,
+          'macroTask': 0,
+          'eventTask': 0
+        };
+        this.zone = zone;
+        this._parentDelegate = parentDelegate;
+        this._forkZS = zoneSpec && (zoneSpec && zoneSpec.onFork ? zoneSpec : parentDelegate._forkZS);
+        this._forkDlgt = zoneSpec && (zoneSpec.onFork ? parentDelegate : parentDelegate._forkDlgt);
+        this._forkCurrZone = zoneSpec && (zoneSpec.onFork ? this.zone : parentDelegate.zone);
+        this._interceptZS = zoneSpec && (zoneSpec.onIntercept ? zoneSpec : parentDelegate._interceptZS);
+        this._interceptDlgt = zoneSpec && (zoneSpec.onIntercept ? parentDelegate : parentDelegate._interceptDlgt);
+        this._interceptCurrZone = zoneSpec && (zoneSpec.onIntercept ? this.zone : parentDelegate.zone);
+        this._invokeZS = zoneSpec && (zoneSpec.onInvoke ? zoneSpec : parentDelegate._invokeZS);
+        this._invokeDlgt = zoneSpec && (zoneSpec.onInvoke ? parentDelegate : parentDelegate._invokeDlgt);
+        this._invokeCurrZone = zoneSpec && (zoneSpec.onInvoke ? this.zone : parentDelegate.zone);
+        this._handleErrorZS = zoneSpec && (zoneSpec.onHandleError ? zoneSpec : parentDelegate._handleErrorZS);
+        this._handleErrorDlgt = zoneSpec && (zoneSpec.onHandleError ? parentDelegate : parentDelegate._handleErrorDlgt);
+        this._handleErrorCurrZone = zoneSpec && (zoneSpec.onHandleError ? this.zone : parentDelegate.zone);
+        this._scheduleTaskZS = zoneSpec && (zoneSpec.onScheduleTask ? zoneSpec : parentDelegate._scheduleTaskZS);
+        this._scheduleTaskDlgt = zoneSpec && (zoneSpec.onScheduleTask ? parentDelegate : parentDelegate._scheduleTaskDlgt);
+        this._scheduleTaskCurrZone = zoneSpec && (zoneSpec.onScheduleTask ? this.zone : parentDelegate.zone);
+        this._invokeTaskZS = zoneSpec && (zoneSpec.onInvokeTask ? zoneSpec : parentDelegate._invokeTaskZS);
+        this._invokeTaskDlgt = zoneSpec && (zoneSpec.onInvokeTask ? parentDelegate : parentDelegate._invokeTaskDlgt);
+        this._invokeTaskCurrZone = zoneSpec && (zoneSpec.onInvokeTask ? this.zone : parentDelegate.zone);
+        this._cancelTaskZS = zoneSpec && (zoneSpec.onCancelTask ? zoneSpec : parentDelegate._cancelTaskZS);
+        this._cancelTaskDlgt = zoneSpec && (zoneSpec.onCancelTask ? parentDelegate : parentDelegate._cancelTaskDlgt);
+        this._cancelTaskCurrZone = zoneSpec && (zoneSpec.onCancelTask ? this.zone : parentDelegate.zone);
+        this._hasTaskZS = null;
+        this._hasTaskDlgt = null;
+        this._hasTaskDlgtOwner = null;
+        this._hasTaskCurrZone = null;
+        var zoneSpecHasTask = zoneSpec && zoneSpec.onHasTask;
+        var parentHasTask = parentDelegate && parentDelegate._hasTaskZS;
+        if (zoneSpecHasTask || parentHasTask) {
+          this._hasTaskZS = zoneSpecHasTask ? zoneSpec : DELEGATE_ZS;
+          this._hasTaskDlgt = parentDelegate;
+          this._hasTaskDlgtOwner = this;
+          this._hasTaskCurrZone = zone;
+          if (!zoneSpec.onScheduleTask) {
+            this._scheduleTaskZS = DELEGATE_ZS;
+            this._scheduleTaskDlgt = parentDelegate;
+            this._scheduleTaskCurrZone = this.zone;
+          }
+          if (!zoneSpec.onInvokeTask) {
+            this._invokeTaskZS = DELEGATE_ZS;
+            this._invokeTaskDlgt = parentDelegate;
+            this._invokeTaskCurrZone = this.zone;
+          }
+          if (!zoneSpec.onCancelTask) {
+            this._cancelTaskZS = DELEGATE_ZS;
+            this._cancelTaskDlgt = parentDelegate;
+            this._cancelTaskCurrZone = this.zone;
+          }
+        }
+      }
+      ZoneDelegate.prototype.fork = function(targetZone, zoneSpec) {
+        return this._forkZS ? this._forkZS.onFork(this._forkDlgt, this.zone, targetZone, zoneSpec) : new Zone(targetZone, zoneSpec);
+      };
+      ZoneDelegate.prototype.intercept = function(targetZone, callback, source) {
+        return this._interceptZS ? this._interceptZS.onIntercept(this._interceptDlgt, this._interceptCurrZone, targetZone, callback, source) : callback;
+      };
+      ZoneDelegate.prototype.invoke = function(targetZone, callback, applyThis, applyArgs, source) {
+        return this._invokeZS ? this._invokeZS.onInvoke(this._invokeDlgt, this._invokeCurrZone, targetZone, callback, applyThis, applyArgs, source) : callback.apply(applyThis, applyArgs);
+      };
+      ZoneDelegate.prototype.handleError = function(targetZone, error) {
+        return this._handleErrorZS ? this._handleErrorZS.onHandleError(this._handleErrorDlgt, this._handleErrorCurrZone, targetZone, error) : true;
+      };
+      ZoneDelegate.prototype.scheduleTask = function(targetZone, task) {
+        var returnTask = task;
+        if (this._scheduleTaskZS) {
+          if (this._hasTaskZS) {
+            returnTask._zoneDelegates.push(this._hasTaskDlgtOwner);
+          }
+          returnTask = this._scheduleTaskZS.onScheduleTask(this._scheduleTaskDlgt, this._scheduleTaskCurrZone, targetZone, task);
+          if (!returnTask)
+            returnTask = task;
+        } else {
+          if (task.scheduleFn) {
+            task.scheduleFn(task);
+          } else if (task.type == microTask) {
+            scheduleMicroTask(task);
+          } else {
+            throw new Error('Task is missing scheduleFn.');
+          }
+        }
+        return returnTask;
+      };
+      ZoneDelegate.prototype.invokeTask = function(targetZone, task, applyThis, applyArgs) {
+        return this._invokeTaskZS ? this._invokeTaskZS.onInvokeTask(this._invokeTaskDlgt, this._invokeTaskCurrZone, targetZone, task, applyThis, applyArgs) : task.callback.apply(applyThis, applyArgs);
+      };
+      ZoneDelegate.prototype.cancelTask = function(targetZone, task) {
+        var value;
+        if (this._cancelTaskZS) {
+          value = this._cancelTaskZS.onCancelTask(this._cancelTaskDlgt, this._cancelTaskCurrZone, targetZone, task);
+        } else {
+          if (!task.cancelFn) {
+            throw Error('Task is not cancelable');
+          }
+          value = task.cancelFn(task);
+        }
+        return value;
+      };
+      ZoneDelegate.prototype.hasTask = function(targetZone, isEmpty) {
+        try {
+          return this._hasTaskZS && this._hasTaskZS.onHasTask(this._hasTaskDlgt, this._hasTaskCurrZone, targetZone, isEmpty);
+        } catch (err) {
+          this.handleError(targetZone, err);
+        }
+      };
+      ZoneDelegate.prototype._updateTaskCount = function(type, count) {
+        var counts = this._taskCounts;
+        var prev = counts[type];
+        var next = counts[type] = prev + count;
+        if (next < 0) {
+          throw new Error('More tasks executed then were scheduled.');
+        }
+        if (prev == 0 || next == 0) {
+          var isEmpty = {
+            microTask: counts.microTask > 0,
+            macroTask: counts.macroTask > 0,
+            eventTask: counts.eventTask > 0,
+            change: type
+          };
+          this.hasTask(this.zone, isEmpty);
+        }
+      };
+      return ZoneDelegate;
+    }());
+    var ZoneTask = (function() {
+      function ZoneTask(type, source, callback, options, scheduleFn, cancelFn) {
+        this._zone = null;
+        this.runCount = 0;
+        this._zoneDelegates = null;
+        this._state = 'notScheduled';
+        this.type = type;
+        this.source = source;
+        this.data = options;
+        this.scheduleFn = scheduleFn;
+        this.cancelFn = cancelFn;
+        this.callback = callback;
+        var self = this;
+        if (type === eventTask && options && options.isUsingGlobalCallback) {
+          this.invoke = ZoneTask.invokeTask;
+        } else {
+          this.invoke = function() {
+            return ZoneTask.invokeTask.apply(global, [self, this, arguments]);
+          };
+        }
+      }
+      ZoneTask.invokeTask = function(task, target, args) {
+        if (!task) {
+          task = this;
+        }
+        _numberOfNestedTaskFrames++;
+        try {
+          task.runCount++;
+          return task.zone.runTask(task, target, args);
+        } finally {
+          if (_numberOfNestedTaskFrames == 1) {
+            drainMicroTaskQueue();
+          }
+          _numberOfNestedTaskFrames--;
+        }
+      };
+      Object.defineProperty(ZoneTask.prototype, "zone", {
+        get: function() {
+          return this._zone;
+        },
+        enumerable: true,
+        configurable: true
+      });
+      Object.defineProperty(ZoneTask.prototype, "state", {
+        get: function() {
+          return this._state;
+        },
+        enumerable: true,
+        configurable: true
+      });
+      ZoneTask.prototype.cancelScheduleRequest = function() {
+        this._transitionTo(notScheduled, scheduling);
+      };
+      ZoneTask.prototype._transitionTo = function(toState, fromState1, fromState2) {
+        if (this._state === fromState1 || this._state === fromState2) {
+          this._state = toState;
+          if (toState == notScheduled) {
+            this._zoneDelegates = null;
+          }
+        } else {
+          throw new Error(this.type + " '" + this.source + "': can not transition to '" + toState + "', expecting state '" + fromState1 + "'" + (fromState2 ? ' or \'' + fromState2 + '\'' : '') + ", was '" + this._state + "'.");
+        }
+      };
+      ZoneTask.prototype.toString = function() {
+        if (this.data && typeof this.data.handleId !== 'undefined') {
+          return this.data.handleId;
+        } else {
+          return Object.prototype.toString.call(this);
+        }
+      };
+      ZoneTask.prototype.toJSON = function() {
+        return {
+          type: this.type,
+          state: this.state,
+          source: this.source,
+          zone: this.zone.name,
+          invoke: this.invoke,
+          scheduleFn: this.scheduleFn,
+          cancelFn: this.cancelFn,
+          runCount: this.runCount,
+          callback: this.callback
+        };
+      };
+      return ZoneTask;
+    }());
+    var symbolSetTimeout = __symbol__('setTimeout');
+    var symbolPromise = __symbol__('Promise');
+    var symbolThen = __symbol__('then');
+    var _microTaskQueue = [];
+    var _isDrainingMicrotaskQueue = false;
+    function scheduleMicroTask(task) {
+      if (_numberOfNestedTaskFrames === 0 && _microTaskQueue.length === 0) {
+        if (global[symbolPromise]) {
+          global[symbolPromise].resolve(0)[symbolThen](drainMicroTaskQueue);
+        } else {
+          global[symbolSetTimeout](drainMicroTaskQueue, 0);
+        }
+      }
+      task && _microTaskQueue.push(task);
+    }
+    function drainMicroTaskQueue() {
+      if (!_isDrainingMicrotaskQueue) {
+        _isDrainingMicrotaskQueue = true;
+        while (_microTaskQueue.length) {
+          var queue = _microTaskQueue;
+          _microTaskQueue = [];
+          for (var i = 0; i < queue.length; i++) {
+            var task = queue[i];
+            try {
+              task.zone.runTask(task, null, null);
+            } catch (error) {
+              _api.onUnhandledError(error);
+            }
+          }
+        }
+        var showError = !Zone[__symbol__('ignoreConsoleErrorUncaughtError')];
+        _api.microtaskDrainDone();
+        _isDrainingMicrotaskQueue = false;
+      }
+    }
+    var NO_ZONE = {name: 'NO ZONE'};
+    var notScheduled = 'notScheduled',
+        scheduling = 'scheduling',
+        scheduled = 'scheduled',
+        running = 'running',
+        canceling = 'canceling',
+        unknown = 'unknown';
+    var microTask = 'microTask',
+        macroTask = 'macroTask',
+        eventTask = 'eventTask';
+    var patches = {};
+    var _api = {
+      symbol: __symbol__,
+      currentZoneFrame: function() {
+        return _currentZoneFrame;
+      },
+      onUnhandledError: noop,
+      microtaskDrainDone: noop,
+      scheduleMicroTask: scheduleMicroTask,
+      showUncaughtError: function() {
+        return !Zone[__symbol__('ignoreConsoleErrorUncaughtError')];
+      },
+      patchEventTarget: function() {
+        return [];
+      },
+      patchOnProperties: noop,
+      patchMethod: function() {
+        return noop;
+      }
+    };
+    var _currentZoneFrame = {
+      parent: null,
+      zone: new Zone(null, null)
+    };
+    var _currentTask = null;
+    var _numberOfNestedTaskFrames = 0;
+    function noop() {}
+    function __symbol__(name) {
+      return '__zone_symbol__' + name;
+    }
+    performanceMeasure('Zone', 'Zone');
+    return global['Zone'] = Zone;
+  })(typeof window !== 'undefined' && window || typeof self !== 'undefined' && self || global);
+  Zone.__load_patch('ZoneAwarePromise', function(global, Zone, api) {
+    var __symbol__ = api.symbol;
+    var _uncaughtPromiseErrors = [];
+    var symbolPromise = __symbol__('Promise');
+    var symbolThen = __symbol__('then');
+    api.onUnhandledError = function(e) {
+      if (api.showUncaughtError()) {
+        var rejection = e && e.rejection;
+        if (rejection) {
+          console.error('Unhandled Promise rejection:', rejection instanceof Error ? rejection.message : rejection, '; Zone:', e.zone.name, '; Task:', e.task && e.task.source, '; Value:', rejection, rejection instanceof Error ? rejection.stack : undefined);
+        } else {
+          console.error(e);
+        }
+      }
+    };
+    api.microtaskDrainDone = function() {
+      while (_uncaughtPromiseErrors.length) {
+        var _loop_1 = function() {
+          var uncaughtPromiseError = _uncaughtPromiseErrors.shift();
+          try {
+            uncaughtPromiseError.zone.runGuarded(function() {
+              throw uncaughtPromiseError;
+            });
+          } catch (error) {
+            handleUnhandledRejection(error);
+          }
+        };
+        while (_uncaughtPromiseErrors.length) {
+          _loop_1();
+        }
+      }
+    };
+    function handleUnhandledRejection(e) {
+      api.onUnhandledError(e);
+      try {
+        var handler = Zone[__symbol__('unhandledPromiseRejectionHandler')];
+        if (handler && typeof handler === 'function') {
+          handler.apply(this, [e]);
+        }
+      } catch (err) {}
+    }
+    function isThenable(value) {
+      return value && value.then;
+    }
+    function forwardResolution(value) {
+      return value;
+    }
+    function forwardRejection(rejection) {
+      return ZoneAwarePromise.reject(rejection);
+    }
+    var symbolState = __symbol__('state');
+    var symbolValue = __symbol__('value');
+    var source = 'Promise.then';
+    var UNRESOLVED = null;
+    var RESOLVED = true;
+    var REJECTED = false;
+    var REJECTED_NO_CATCH = 0;
+    function makeResolver(promise, state) {
+      return function(v) {
+        try {
+          resolvePromise(promise, state, v);
+        } catch (err) {
+          resolvePromise(promise, false, err);
+        }
+      };
+    }
+    var once = function() {
+      var wasCalled = false;
+      return function wrapper(wrappedFunction) {
+        return function() {
+          if (wasCalled) {
+            return;
+          }
+          wasCalled = true;
+          wrappedFunction.apply(null, arguments);
+        };
+      };
+    };
+    function resolvePromise(promise, state, value) {
+      var onceWrapper = once();
+      if (promise === value) {
+        throw new TypeError('Promise resolved with itself');
+      }
+      if (promise[symbolState] === UNRESOLVED) {
+        var then = null;
+        try {
+          if (typeof value === 'object' || typeof value === 'function') {
+            then = value && value.then;
+          }
+        } catch (err) {
+          onceWrapper(function() {
+            resolvePromise(promise, false, err);
+          })();
+          return promise;
+        }
+        if (state !== REJECTED && value instanceof ZoneAwarePromise && value.hasOwnProperty(symbolState) && value.hasOwnProperty(symbolValue) && value[symbolState] !== UNRESOLVED) {
+          clearRejectedNoCatch(value);
+          resolvePromise(promise, value[symbolState], value[symbolValue]);
+        } else if (state !== REJECTED && typeof then === 'function') {
+          try {
+            then.apply(value, [onceWrapper(makeResolver(promise, state)), onceWrapper(makeResolver(promise, false))]);
+          } catch (err) {
+            onceWrapper(function() {
+              resolvePromise(promise, false, err);
+            })();
+          }
+        } else {
+          promise[symbolState] = state;
+          var queue = promise[symbolValue];
+          promise[symbolValue] = value;
+          if (state === REJECTED && value instanceof Error) {
+            value[__symbol__('currentTask')] = Zone.currentTask;
+          }
+          for (var i = 0; i < queue.length; ) {
+            scheduleResolveOrReject(promise, queue[i++], queue[i++], queue[i++], queue[i++]);
+          }
+          if (queue.length == 0 && state == REJECTED) {
+            promise[symbolState] = REJECTED_NO_CATCH;
+            try {
+              throw new Error('Uncaught (in promise): ' + value + (value && value.stack ? '\n' + value.stack : ''));
+            } catch (err) {
+              var error_1 = err;
+              error_1.rejection = value;
+              error_1.promise = promise;
+              error_1.zone = Zone.current;
+              error_1.task = Zone.currentTask;
+              _uncaughtPromiseErrors.push(error_1);
+              api.scheduleMicroTask();
+            }
+          }
+        }
+      }
+      return promise;
+    }
+    function clearRejectedNoCatch(promise) {
+      if (promise[symbolState] === REJECTED_NO_CATCH) {
+        try {
+          var handler = Zone[__symbol__('rejectionHandledHandler')];
+          if (handler && typeof handler === 'function') {
+            handler.apply(this, [{
+              rejection: promise[symbolValue],
+              promise: promise
+            }]);
+          }
+        } catch (err) {}
+        promise[symbolState] = REJECTED;
+        for (var i = 0; i < _uncaughtPromiseErrors.length; i++) {
+          if (promise === _uncaughtPromiseErrors[i].promise) {
+            _uncaughtPromiseErrors.splice(i, 1);
+          }
+        }
+      }
+    }
+    function scheduleResolveOrReject(promise, zone, chainPromise, onFulfilled, onRejected) {
+      clearRejectedNoCatch(promise);
+      var delegate = promise[symbolState] ? (typeof onFulfilled === 'function') ? onFulfilled : forwardResolution : (typeof onRejected === 'function') ? onRejected : forwardRejection;
+      zone.scheduleMicroTask(source, function() {
+        try {
+          resolvePromise(chainPromise, true, zone.run(delegate, undefined, [promise[symbolValue]]));
+        } catch (error) {
+          resolvePromise(chainPromise, false, error);
+        }
+      });
+    }
+    var ZoneAwarePromise = (function() {
+      function ZoneAwarePromise(executor) {
+        var promise = this;
+        if (!(promise instanceof ZoneAwarePromise)) {
+          throw new Error('Must be an instanceof Promise.');
+        }
+        promise[symbolState] = UNRESOLVED;
+        promise[symbolValue] = [];
+        try {
+          executor && executor(makeResolver(promise, RESOLVED), makeResolver(promise, REJECTED));
+        } catch (error) {
+          resolvePromise(promise, false, error);
+        }
+      }
+      ZoneAwarePromise.toString = function() {
+        return 'function ZoneAwarePromise() { [native code] }';
+      };
+      ZoneAwarePromise.resolve = function(value) {
+        return resolvePromise(new this(null), RESOLVED, value);
+      };
+      ZoneAwarePromise.reject = function(error) {
+        return resolvePromise(new this(null), REJECTED, error);
+      };
+      ZoneAwarePromise.race = function(values) {
+        var resolve;
+        var reject;
+        var promise = new this(function(res, rej) {
+          _a = [res, rej], resolve = _a[0], reject = _a[1];
+          var _a;
+        });
+        function onResolve(value) {
+          promise && (promise = null || resolve(value));
+        }
+        function onReject(error) {
+          promise && (promise = null || reject(error));
+        }
+        for (var _i = 0,
+            values_1 = values; _i < values_1.length; _i++) {
+          var value = values_1[_i];
+          if (!isThenable(value)) {
+            value = this.resolve(value);
+          }
+          value.then(onResolve, onReject);
+        }
+        return promise;
+      };
+      ZoneAwarePromise.all = function(values) {
+        var resolve;
+        var reject;
+        var promise = new this(function(res, rej) {
+          resolve = res;
+          reject = rej;
+        });
+        var count = 0;
+        var resolvedValues = [];
+        for (var _i = 0,
+            values_2 = values; _i < values_2.length; _i++) {
+          var value = values_2[_i];
+          if (!isThenable(value)) {
+            value = this.resolve(value);
+          }
+          value.then((function(index) {
+            return function(value) {
+              resolvedValues[index] = value;
+              count--;
+              if (!count) {
+                resolve(resolvedValues);
+              }
+            };
+          })(count), reject);
+          count++;
+        }
+        if (!count)
+          resolve(resolvedValues);
+        return promise;
+      };
+      ZoneAwarePromise.prototype.then = function(onFulfilled, onRejected) {
+        var chainPromise = new this.constructor(null);
+        var zone = Zone.current;
+        if (this[symbolState] == UNRESOLVED) {
+          this[symbolValue].push(zone, chainPromise, onFulfilled, onRejected);
+        } else {
+          scheduleResolveOrReject(this, zone, chainPromise, onFulfilled, onRejected);
+        }
+        return chainPromise;
+      };
+      ZoneAwarePromise.prototype.catch = function(onRejected) {
+        return this.then(null, onRejected);
+      };
+      return ZoneAwarePromise;
+    }());
+    ZoneAwarePromise['resolve'] = ZoneAwarePromise.resolve;
+    ZoneAwarePromise['reject'] = ZoneAwarePromise.reject;
+    ZoneAwarePromise['race'] = ZoneAwarePromise.race;
+    ZoneAwarePromise['all'] = ZoneAwarePromise.all;
+    var NativePromise = global[symbolPromise] = global['Promise'];
+    global['Promise'] = ZoneAwarePromise;
+    var symbolThenPatched = __symbol__('thenPatched');
+    function patchThen(Ctor) {
+      var proto = Ctor.prototype;
+      var originalThen = proto.then;
+      proto[symbolThen] = originalThen;
+      var prop = Object.getOwnPropertyDescriptor(Ctor.prototype, 'then');
+      if (prop && prop.writable === false && prop.configurable) {
+        Object.defineProperty(Ctor.prototype, 'then', {writable: true});
+      }
+      Ctor.prototype.then = function(onResolve, onReject) {
+        var _this = this;
+        var wrapped = new ZoneAwarePromise(function(resolve, reject) {
+          originalThen.call(_this, resolve, reject);
+        });
+        return wrapped.then(onResolve, onReject);
+      };
+      Ctor[symbolThenPatched] = true;
+    }
+    function zoneify(fn) {
+      return function() {
+        var resultPromise = fn.apply(this, arguments);
+        if (resultPromise instanceof ZoneAwarePromise) {
+          return resultPromise;
+        }
+        var ctor = resultPromise.constructor;
+        if (!ctor[symbolThenPatched]) {
+          patchThen(ctor);
+        }
+        return resultPromise;
+      };
+    }
+    if (NativePromise) {
+      patchThen(NativePromise);
+      var fetch_1 = global['fetch'];
+      if (typeof fetch_1 == 'function') {
+        global['fetch'] = zoneify(fetch_1);
+      }
+    }
+    Promise[Zone.__symbol__('uncaughtPromiseErrors')] = _uncaughtPromiseErrors;
+    return ZoneAwarePromise;
+  });
+  var zoneSymbol = Zone.__symbol__;
+  var _global = typeof window === 'object' && window || typeof self === 'object' && self || global;
+  function bindArguments(args, source) {
+    for (var i = args.length - 1; i >= 0; i--) {
+      if (typeof args[i] === 'function') {
+        args[i] = Zone.current.wrap(args[i], source + '_' + i);
+      }
+    }
+    return args;
+  }
+  function patchPrototype(prototype, fnNames) {
+    var source = prototype.constructor['name'];
+    var _loop_1 = function(i) {
+      var name_1 = fnNames[i];
+      var delegate = prototype[name_1];
+      if (delegate) {
+        prototype[name_1] = (function(delegate) {
+          var patched = function() {
+            return delegate.apply(this, bindArguments(arguments, source + '.' + name_1));
+          };
+          attachOriginToPatched(patched, delegate);
+          return patched;
+        })(delegate);
+      }
+    };
+    for (var i = 0; i < fnNames.length; i++) {
+      _loop_1(i);
+    }
+  }
+  var isWebWorker = (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope);
+  var isNode = (!('nw' in _global) && typeof _global.process !== 'undefined' && {}.toString.call(_global.process) === '[object process]');
+  var isBrowser = !isNode && !isWebWorker && !!(typeof window !== 'undefined' && window['HTMLElement']);
+  var isMix = typeof _global.process !== 'undefined' && {}.toString.call(_global.process) === '[object process]' && !isWebWorker && !!(typeof window !== 'undefined' && window['HTMLElement']);
+  function patchProperty(obj, prop, prototype) {
+    var desc = Object.getOwnPropertyDescriptor(obj, prop);
+    if (!desc && prototype) {
+      var prototypeDesc = Object.getOwnPropertyDescriptor(prototype, prop);
+      if (prototypeDesc) {
+        desc = {
+          enumerable: true,
+          configurable: true
+        };
+      }
+    }
+    if (!desc || !desc.configurable) {
+      return;
+    }
+    delete desc.writable;
+    delete desc.value;
+    var originalDescGet = desc.get;
+    var eventName = prop.substr(2);
+    var _prop = zoneSymbol('_' + prop);
+    desc.set = function(newValue) {
+      var target = this;
+      if (!target && obj === _global) {
+        target = _global;
+      }
+      if (!target) {
+        return;
+      }
+      var previousValue = target[_prop];
+      if (previousValue) {
+        target.removeEventListener(eventName, previousValue);
+      }
+      if (typeof newValue === 'function') {
+        var wrapFn = function(event) {
+          var result = newValue.apply(this, arguments);
+          if (result != undefined && !result) {
+            event.preventDefault();
+          }
+          return result;
+        };
+        target[_prop] = wrapFn;
+        target.addEventListener(eventName, wrapFn, false);
+      } else {
+        target[_prop] = null;
+      }
+    };
+    desc.get = function() {
+      var target = this;
+      if (!target && obj === _global) {
+        target = _global;
+      }
+      if (!target) {
+        return null;
+      }
+      if (target.hasOwnProperty(_prop)) {
+        return target[_prop];
+      } else if (originalDescGet) {
+        var value = originalDescGet && originalDescGet.apply(this);
+        if (value) {
+          desc.set.apply(this, [value]);
+          if (typeof target['removeAttribute'] === 'function') {
+            target.removeAttribute(prop);
+          }
+          return value;
+        }
+      }
+      return null;
+    };
+    Object.defineProperty(obj, prop, desc);
+  }
+  function patchOnProperties(obj, properties, prototype) {
+    if (properties) {
+      for (var i = 0; i < properties.length; i++) {
+        patchProperty(obj, 'on' + properties[i], prototype);
+      }
+    } else {
+      var onProperties = [];
+      for (var prop in obj) {
+        if (prop.substr(0, 2) == 'on') {
+          onProperties.push(prop);
+        }
+      }
+      for (var j = 0; j < onProperties.length; j++) {
+        patchProperty(obj, onProperties[j], prototype);
+      }
+    }
+  }
+  var originalInstanceKey = zoneSymbol('originalInstance');
+  function patchClass(className) {
+    var OriginalClass = _global[className];
+    if (!OriginalClass)
+      return;
+    _global[zoneSymbol(className)] = OriginalClass;
+    _global[className] = function() {
+      var a = bindArguments(arguments, className);
+      switch (a.length) {
+        case 0:
+          this[originalInstanceKey] = new OriginalClass();
+          break;
+        case 1:
+          this[originalInstanceKey] = new OriginalClass(a[0]);
+          break;
+        case 2:
+          this[originalInstanceKey] = new OriginalClass(a[0], a[1]);
+          break;
+        case 3:
+          this[originalInstanceKey] = new OriginalClass(a[0], a[1], a[2]);
+          break;
+        case 4:
+          this[originalInstanceKey] = new OriginalClass(a[0], a[1], a[2], a[3]);
+          break;
+        default:
+          throw new Error('Arg list too long.');
+      }
+    };
+    attachOriginToPatched(_global[className], OriginalClass);
+    var instance = new OriginalClass(function() {});
+    var prop;
+    for (prop in instance) {
+      if (className === 'XMLHttpRequest' && prop === 'responseBlob')
+        continue;
+      (function(prop) {
+        if (typeof instance[prop] === 'function') {
+          _global[className].prototype[prop] = function() {
+            return this[originalInstanceKey][prop].apply(this[originalInstanceKey], arguments);
+          };
+        } else {
+          Object.defineProperty(_global[className].prototype, prop, {
+            set: function(fn) {
+              if (typeof fn === 'function') {
+                this[originalInstanceKey][prop] = Zone.current.wrap(fn, className + '.' + prop);
+                attachOriginToPatched(this[originalInstanceKey][prop], fn);
+              } else {
+                this[originalInstanceKey][prop] = fn;
+              }
+            },
+            get: function() {
+              return this[originalInstanceKey][prop];
+            }
+          });
+        }
+      }(prop));
+    }
+    for (prop in OriginalClass) {
+      if (prop !== 'prototype' && OriginalClass.hasOwnProperty(prop)) {
+        _global[className][prop] = OriginalClass[prop];
+      }
+    }
+  }
+  function patchMethod(target, name, patchFn) {
+    var proto = target;
+    while (proto && !proto.hasOwnProperty(name)) {
+      proto = Object.getPrototypeOf(proto);
+    }
+    if (!proto && target[name]) {
+      proto = target;
+    }
+    var delegateName = zoneSymbol(name);
+    var delegate;
+    if (proto && !(delegate = proto[delegateName])) {
+      delegate = proto[delegateName] = proto[name];
+      var patchDelegate_1 = patchFn(delegate, delegateName, name);
+      proto[name] = function() {
+        return patchDelegate_1(this, arguments);
+      };
+      attachOriginToPatched(proto[name], delegate);
+    }
+    return delegate;
+  }
+  function patchMacroTask(obj, funcName, metaCreator) {
+    var setNative = null;
+    function scheduleTask(task) {
+      var data = task.data;
+      data.args[data.callbackIndex] = function() {
+        task.invoke.apply(this, arguments);
+      };
+      setNative.apply(data.target, data.args);
+      return task;
+    }
+    setNative = patchMethod(obj, funcName, function(delegate) {
+      return function(self, args) {
+        var meta = metaCreator(self, args);
+        if (meta.callbackIndex >= 0 && typeof args[meta.callbackIndex] === 'function') {
+          var task = Zone.current.scheduleMacroTask(meta.name, args[meta.callbackIndex], meta, scheduleTask, null);
+          return task;
+        } else {
+          return delegate.apply(self, args);
+        }
+      };
+    });
+  }
+  function attachOriginToPatched(patched, original) {
+    patched[zoneSymbol('OriginalDelegate')] = original;
+  }
+  var isDetectedIEOrEdge = false;
+  var ieOrEdge = false;
+  function isIEOrEdge() {
+    if (isDetectedIEOrEdge) {
+      return ieOrEdge;
+    }
+    isDetectedIEOrEdge = true;
+    try {
+      var ua = window.navigator.userAgent;
+      var msie = ua.indexOf('MSIE ');
+      if (ua.indexOf('MSIE ') !== -1 || ua.indexOf('Trident/') !== -1 || ua.indexOf('Edge/') !== -1) {
+        ieOrEdge = true;
+      }
+      return ieOrEdge;
+    } catch (error) {}
+  }
+  Zone.__load_patch('toString', function(global, Zone, api) {
+    var originalFunctionToString = Zone['__zone_symbol__originalToString'] = Function.prototype.toString;
+    Function.prototype.toString = function() {
+      if (typeof this === 'function') {
+        var originalDelegate = this[zoneSymbol('OriginalDelegate')];
+        if (originalDelegate) {
+          if (typeof originalDelegate === 'function') {
+            return originalFunctionToString.apply(this[zoneSymbol('OriginalDelegate')], arguments);
+          } else {
+            return Object.prototype.toString.call(originalDelegate);
+          }
+        }
+        if (this === Promise) {
+          var nativePromise = global[zoneSymbol('Promise')];
+          if (nativePromise) {
+            return originalFunctionToString.apply(nativePromise, arguments);
+          }
+        }
+        if (this === Error) {
+          var nativeError = global[zoneSymbol('Error')];
+          if (nativeError) {
+            return originalFunctionToString.apply(nativeError, arguments);
+          }
+        }
+      }
+      return originalFunctionToString.apply(this, arguments);
+    };
+    var originalObjectToString = Object.prototype.toString;
+    Object.prototype.toString = function() {
+      if (this instanceof Promise) {
+        return '[object Promise]';
+      }
+      return originalObjectToString.apply(this, arguments);
+    };
+  });
+  var TRUE_STR = 'true';
+  var FALSE_STR = 'false';
+  var OPTIMIZED_ZONE_EVENT_TASK_DATA = {isUsingGlobalCallback: true};
+  var zoneSymbolEventNames = {};
+  var globalSources = {};
+  var CONSTRUCTOR_NAME = 'name';
+  var FUNCTION_TYPE = 'function';
+  var OBJECT_TYPE = 'object';
+  var ZONE_SYMBOL_PREFIX = '__zone_symbol__';
+  var EVENT_NAME_SYMBOL_REGX = /^__zone_symbol__(\w+)(true|false)$/;
+  function patchEventTarget(_global, apis, patchOptions) {
+    var ADD_EVENT_LISTENER = (patchOptions && patchOptions.addEventListenerFnName) || 'addEventListener';
+    var REMOVE_EVENT_LISTENER = (patchOptions && patchOptions.removeEventListenerFnName) || 'removeEventListener';
+    var LISTENERS_EVENT_LISTENER = (patchOptions && patchOptions.listenersFnName) || 'eventListeners';
+    var REMOVE_ALL_LISTENERS_EVENT_LISTENER = (patchOptions && patchOptions.removeAllFnName) || 'removeAllListeners';
+    var zoneSymbolAddEventListener = zoneSymbol(ADD_EVENT_LISTENER);
+    var ADD_EVENT_LISTENER_SOURCE = '.' + ADD_EVENT_LISTENER + ':';
+    var PREPEND_EVENT_LISTENER = 'prependListener';
+    var PREPEND_EVENT_LISTENER_SOURCE = '.' + PREPEND_EVENT_LISTENER + ':';
+    var invokeTask = function(task, target, event) {
+      if (task.isRemoved) {
+        return;
+      }
+      var delegate = task.callback;
+      if (typeof delegate === OBJECT_TYPE && delegate.handleEvent) {
+        task.callback = function(event) {
+          return delegate.handleEvent(event);
+        };
+        task.originalDelegate = delegate;
+      }
+      task.invoke(task, target, [event]);
+      var options = task.options;
+      if (options && typeof options === 'object' && options.once) {
+        var delegate_1 = task.originalDelegate ? task.originalDelegate : task.callback;
+        target[REMOVE_EVENT_LISTENER].apply(target, [event.type, delegate_1, options]);
+      }
+    };
+    var globalZoneAwareCallback = function(event) {
+      var target = this || _global;
+      var tasks = target[zoneSymbolEventNames[event.type][FALSE_STR]];
+      if (tasks) {
+        if (tasks.length === 1) {
+          invokeTask(tasks[0], target, event);
+        } else {
+          var copyTasks = tasks.slice();
+          for (var i = 0; i < copyTasks.length; i++) {
+            invokeTask(copyTasks[i], target, event);
+          }
+        }
+      }
+    };
+    var globalZoneAwareCaptureCallback = function(event) {
+      var target = this || _global;
+      var tasks = target[zoneSymbolEventNames[event.type][TRUE_STR]];
+      if (tasks) {
+        if (tasks.length === 1) {
+          invokeTask(tasks[0], target, event);
+        } else {
+          var copyTasks = tasks.slice();
+          for (var i = 0; i < copyTasks.length; i++) {
+            invokeTask(copyTasks[i], target, event);
+          }
+        }
+      }
+    };
+    function patchEventTargetMethods(obj, patchOptions) {
+      if (!obj) {
+        return false;
+      }
+      var useGlobalCallback = true;
+      if (patchOptions && patchOptions.useGlobalCallback !== undefined) {
+        useGlobalCallback = patchOptions.useGlobalCallback;
+      }
+      var validateHandler = patchOptions && patchOptions.validateHandler;
+      var checkDuplicate = true;
+      if (patchOptions && patchOptions.checkDuplicate !== undefined) {
+        checkDuplicate = patchOptions.checkDuplicate;
+      }
+      var returnTarget = false;
+      if (patchOptions && patchOptions.returnTarget !== undefined) {
+        returnTarget = patchOptions.returnTarget;
+      }
+      var proto = obj;
+      while (proto && !proto.hasOwnProperty(ADD_EVENT_LISTENER)) {
+        proto = Object.getPrototypeOf(proto);
+      }
+      if (!proto && obj[ADD_EVENT_LISTENER]) {
+        proto = obj;
+      }
+      if (!proto) {
+        return false;
+      }
+      if (proto[zoneSymbolAddEventListener]) {
+        return false;
+      }
+      var taskData = {};
+      var nativeAddEventListener = proto[zoneSymbolAddEventListener] = proto[ADD_EVENT_LISTENER];
+      var nativeRemoveEventListener = proto[zoneSymbol(REMOVE_EVENT_LISTENER)] = proto[REMOVE_EVENT_LISTENER];
+      var nativeListeners = proto[zoneSymbol(LISTENERS_EVENT_LISTENER)] = proto[LISTENERS_EVENT_LISTENER];
+      var nativeRemoveAllListeners = proto[zoneSymbol(REMOVE_ALL_LISTENERS_EVENT_LISTENER)] = proto[REMOVE_ALL_LISTENERS_EVENT_LISTENER];
+      var nativePrependEventListener;
+      if (patchOptions && patchOptions.prependEventListenerFnName) {
+        nativePrependEventListener = proto[zoneSymbol(patchOptions.prependEventListenerFnName)] = proto[patchOptions.prependEventListenerFnName];
+      }
+      var customScheduleGlobal = function(task) {
+        if (taskData.isExisting) {
+          return;
+        }
+        return nativeAddEventListener.apply(taskData.target, [taskData.eventName, taskData.capture ? globalZoneAwareCaptureCallback : globalZoneAwareCallback, taskData.options]);
+      };
+      var customCancelGlobal = function(task) {
+        if (!task.isRemoved) {
+          var symbolEventNames = zoneSymbolEventNames[task.eventName];
+          var symbolEventName = void 0;
+          if (symbolEventNames) {
+            symbolEventName = symbolEventNames[task.capture ? TRUE_STR : FALSE_STR];
+          }
+          var existingTasks = symbolEventName && task.target[symbolEventName];
+          if (existingTasks) {
+            for (var i = 0; i < existingTasks.length; i++) {
+              var existingTask = existingTasks[i];
+              if (existingTask === task) {
+                existingTasks.splice(i, 1);
+                task.isRemoved = true;
+                if (existingTasks.length === 0) {
+                  task.allRemoved = true;
+                  task.target[symbolEventName] = null;
+                }
+                break;
+              }
+            }
+          }
+        }
+        if (!task.allRemoved) {
+          return;
+        }
+        return nativeRemoveEventListener.apply(task.target, [task.eventName, task.capture ? globalZoneAwareCaptureCallback : globalZoneAwareCallback, task.options]);
+      };
+      var customScheduleNonGlobal = function(task) {
+        return nativeAddEventListener.apply(taskData.target, [taskData.eventName, task.invoke, taskData.options]);
+      };
+      var customSchedulePrepend = function(task) {
+        return nativePrependEventListener.apply(taskData.target, [taskData.eventName, task.invoke, taskData.options]);
+      };
+      var customCancelNonGlobal = function(task) {
+        return nativeRemoveEventListener.apply(task.target, [task.eventName, task.invoke, task.options]);
+      };
+      var customSchedule = useGlobalCallback ? customScheduleGlobal : customScheduleNonGlobal;
+      var customCancel = useGlobalCallback ? customCancelGlobal : customCancelNonGlobal;
+      var compareTaskCallbackVsDelegate = function(task, delegate) {
+        var typeOfDelegate = typeof delegate;
+        if ((typeOfDelegate === FUNCTION_TYPE && task.callback === delegate) || (typeOfDelegate === OBJECT_TYPE && task.originalDelegate === delegate)) {
+          return true;
+        }
+        return false;
+      };
+      var compare = (patchOptions && patchOptions.compareTaskCallbackVsDelegate) ? patchOptions.compareTaskCallbackVsDelegate : compareTaskCallbackVsDelegate;
+      var makeAddListener = function(nativeListener, addSource, customScheduleFn, customCancelFn, returnTarget, prepend) {
+        if (returnTarget === void 0) {
+          returnTarget = false;
+        }
+        if (prepend === void 0) {
+          prepend = false;
+        }
+        return function() {
+          var target = this || _global;
+          var targetZone = Zone.current;
+          var delegate = arguments[1];
+          if (!delegate) {
+            return nativeListener.apply(this, arguments);
+          }
+          var isHandleEvent = false;
+          if (typeof delegate !== FUNCTION_TYPE) {
+            if (!delegate.handleEvent) {
+              return nativeListener.apply(this, arguments);
+            }
+            isHandleEvent = true;
+          }
+          if (validateHandler && !validateHandler(nativeListener, delegate, target, arguments)) {
+            return;
+          }
+          var eventName = arguments[0];
+          var options = arguments[2];
+          var capture;
+          var once = false;
+          if (options === undefined) {
+            capture = false;
+          } else if (options === true) {
+            capture = true;
+          } else if (options === false) {
+            capture = false;
+          } else {
+            capture = options ? !!options.capture : false;
+            once = options ? !!options.once : false;
+          }
+          var zone = Zone.current;
+          var symbolEventNames = zoneSymbolEventNames[eventName];
+          var symbolEventName;
+          if (!symbolEventNames) {
+            var falseEventName = eventName + FALSE_STR;
+            var trueEventName = eventName + TRUE_STR;
+            var symbol = ZONE_SYMBOL_PREFIX + falseEventName;
+            var symbolCapture = ZONE_SYMBOL_PREFIX + trueEventName;
+            zoneSymbolEventNames[eventName] = {};
+            zoneSymbolEventNames[eventName][FALSE_STR] = symbol;
+            zoneSymbolEventNames[eventName][TRUE_STR] = symbolCapture;
+            symbolEventName = capture ? symbolCapture : symbol;
+          } else {
+            symbolEventName = symbolEventNames[capture ? TRUE_STR : FALSE_STR];
+          }
+          var existingTasks = target[symbolEventName];
+          var isExisting = false;
+          if (existingTasks) {
+            isExisting = true;
+            if (checkDuplicate) {
+              for (var i = 0; i < existingTasks.length; i++) {
+                if (compare(existingTasks[i], delegate)) {
+                  return;
+                }
+              }
+            }
+          } else {
+            existingTasks = target[symbolEventName] = [];
+          }
+          var source;
+          var constructorName = target.constructor[CONSTRUCTOR_NAME];
+          var targetSource = globalSources[constructorName];
+          if (targetSource) {
+            source = targetSource[eventName];
+          }
+          if (!source) {
+            source = constructorName + addSource + eventName;
+          }
+          taskData.options = options;
+          if (once) {
+            taskData.options.once = false;
+          }
+          taskData.target = target;
+          taskData.capture = capture;
+          taskData.eventName = eventName;
+          taskData.isExisting = isExisting;
+          var data = useGlobalCallback ? OPTIMIZED_ZONE_EVENT_TASK_DATA : null;
+          var task = zone.scheduleEventTask(source, delegate, data, customScheduleFn, customCancelFn);
+          if (once) {
+            options.once = true;
+          }
+          task.options = options;
+          task.target = target;
+          task.capture = capture;
+          task.eventName = eventName;
+          if (isHandleEvent) {
+            task.originalDelegate = delegate;
+          }
+          if (!prepend) {
+            existingTasks.push(task);
+          } else {
+            existingTasks.unshift(task);
+          }
+          if (returnTarget) {
+            return target;
+          }
+        };
+      };
+      proto[ADD_EVENT_LISTENER] = makeAddListener(nativeAddEventListener, ADD_EVENT_LISTENER_SOURCE, customSchedule, customCancel, returnTarget);
+      if (nativePrependEventListener) {
+        proto[PREPEND_EVENT_LISTENER] = makeAddListener(nativePrependEventListener, PREPEND_EVENT_LISTENER_SOURCE, customSchedulePrepend, customCancel, returnTarget, true);
+      }
+      proto[REMOVE_EVENT_LISTENER] = function() {
+        var target = this || _global;
+        var eventName = arguments[0];
+        var options = arguments[2];
+        var capture;
+        if (options === undefined) {
+          capture = false;
+        } else if (options === true) {
+          capture = true;
+        } else if (options === false) {
+          capture = false;
+        } else {
+          capture = options ? !!options.capture : false;
+        }
+        var delegate = arguments[1];
+        if (!delegate) {
+          return nativeRemoveEventListener.apply(this, arguments);
+        }
+        if (validateHandler && !validateHandler(nativeRemoveEventListener, delegate, target, arguments)) {
+          return;
+        }
+        var symbolEventNames = zoneSymbolEventNames[eventName];
+        var symbolEventName;
+        if (symbolEventNames) {
+          symbolEventName = symbolEventNames[capture ? TRUE_STR : FALSE_STR];
+        }
+        var existingTasks = symbolEventName && target[symbolEventName];
+        if (existingTasks) {
+          for (var i = 0; i < existingTasks.length; i++) {
+            var existingTask = existingTasks[i];
+            var typeOfDelegate = typeof delegate;
+            if (compare(existingTask, delegate)) {
+              existingTasks.splice(i, 1);
+              existingTask.isRemoved = true;
+              if (existingTasks.length === 0) {
+                existingTask.allRemoved = true;
+                target[symbolEventName] = null;
+              }
+              existingTask.zone.cancelTask(existingTask);
+              return;
+            }
+          }
+        }
+      };
+      proto[LISTENERS_EVENT_LISTENER] = function() {
+        var target = this || _global;
+        var eventName = arguments[0];
+        var listeners = [];
+        var tasks = findEventTasks(target, eventName);
+        for (var i = 0; i < tasks.length; i++) {
+          var task = tasks[i];
+          var delegate = task.originalDelegate ? task.originalDelegate : task.callback;
+          listeners.push(delegate);
+        }
+        return listeners;
+      };
+      proto[REMOVE_ALL_LISTENERS_EVENT_LISTENER] = function() {
+        var target = this || _global;
+        var eventName = arguments[0];
+        if (!eventName) {
+          var keys = Object.keys(target);
+          for (var i = 0; i < keys.length; i++) {
+            var prop = keys[i];
+            var match = EVENT_NAME_SYMBOL_REGX.exec(prop);
+            var evtName = match && match[1];
+            if (evtName && evtName !== 'removeListener') {
+              this[REMOVE_ALL_LISTENERS_EVENT_LISTENER].apply(this, [evtName]);
+            }
+          }
+          this[REMOVE_ALL_LISTENERS_EVENT_LISTENER].apply(this, ['removeListener']);
+        } else {
+          var symbolEventNames = zoneSymbolEventNames[eventName];
+          if (symbolEventNames) {
+            var symbolEventName = symbolEventNames[FALSE_STR];
+            var symbolCaptureEventName = symbolEventNames[TRUE_STR];
+            var tasks = target[symbolEventName];
+            var captureTasks = target[symbolCaptureEventName];
+            if (tasks) {
+              var removeTasks = tasks.slice();
+              for (var i = 0; i < removeTasks.length; i++) {
+                var task = removeTasks[i];
+                var delegate = task.originalDelegate ? task.originalDelegate : task.callback;
+                this[REMOVE_EVENT_LISTENER].apply(this, [eventName, delegate, task.options]);
+              }
+            }
+            if (captureTasks) {
+              var removeTasks = captureTasks.slice();
+              for (var i = 0; i < removeTasks.length; i++) {
+                var task = removeTasks[i];
+                var delegate = task.originalDelegate ? task.originalDelegate : task.callback;
+                this[REMOVE_EVENT_LISTENER].apply(this, [eventName, delegate, task.options]);
+              }
+            }
+          }
+        }
+      };
+      attachOriginToPatched(proto[ADD_EVENT_LISTENER], nativeAddEventListener);
+      attachOriginToPatched(proto[REMOVE_EVENT_LISTENER], nativeRemoveEventListener);
+      if (nativeRemoveAllListeners) {
+        attachOriginToPatched(proto[REMOVE_ALL_LISTENERS_EVENT_LISTENER], nativeRemoveAllListeners);
+      }
+      if (nativeListeners) {
+        attachOriginToPatched(proto[LISTENERS_EVENT_LISTENER], nativeListeners);
+      }
+      return true;
+    }
+    var results = [];
+    for (var i = 0; i < apis.length; i++) {
+      results[i] = patchEventTargetMethods(apis[i], patchOptions);
+    }
+    return results;
+  }
+  function findEventTasks(target, eventName) {
+    var foundTasks = [];
+    for (var prop in target) {
+      var match = EVENT_NAME_SYMBOL_REGX.exec(prop);
+      var evtName = match && match[1];
+      if (evtName && (!eventName || evtName === eventName)) {
+        var tasks = target[prop];
+        if (tasks) {
+          for (var i = 0; i < tasks.length; i++) {
+            foundTasks.push(tasks[i]);
+          }
+        }
+      }
+    }
+    return foundTasks;
+  }
+  function patchTimer(window, setName, cancelName, nameSuffix) {
+    var setNative = null;
+    var clearNative = null;
+    setName += nameSuffix;
+    cancelName += nameSuffix;
+    var tasksByHandleId = {};
+    function scheduleTask(task) {
+      var data = task.data;
+      function timer() {
+        try {
+          task.invoke.apply(this, arguments);
+        } finally {
+          if (typeof data.handleId === 'number') {
+            delete tasksByHandleId[data.handleId];
+          }
+        }
+      }
+      data.args[0] = timer;
+      data.handleId = setNative.apply(window, data.args);
+      if (typeof data.handleId === 'number') {
+        tasksByHandleId[data.handleId] = task;
+      }
+      return task;
+    }
+    function clearTask(task) {
+      if (typeof task.data.handleId === 'number') {
+        delete tasksByHandleId[task.data.handleId];
+      }
+      return clearNative(task.data.handleId);
+    }
+    setNative = patchMethod(window, setName, function(delegate) {
+      return function(self, args) {
+        if (typeof args[0] === 'function') {
+          var zone = Zone.current;
+          var options = {
+            handleId: null,
+            isPeriodic: nameSuffix === 'Interval',
+            delay: (nameSuffix === 'Timeout' || nameSuffix === 'Interval') ? args[1] || 0 : null,
+            args: args
+          };
+          var task = zone.scheduleMacroTask(setName, args[0], options, scheduleTask, clearTask);
+          if (!task) {
+            return task;
+          }
+          var handle = task.data.handleId;
+          if (handle && handle.ref && handle.unref && typeof handle.ref === 'function' && typeof handle.unref === 'function') {
+            task.ref = handle.ref.bind(handle);
+            task.unref = handle.unref.bind(handle);
+          }
+          return task;
+        } else {
+          return delegate.apply(window, args);
+        }
+      };
+    });
+    clearNative = patchMethod(window, cancelName, function(delegate) {
+      return function(self, args) {
+        var task = typeof args[0] === 'number' ? tasksByHandleId[args[0]] : args[0];
+        if (task && typeof task.type === 'string') {
+          if (task.state !== 'notScheduled' && (task.cancelFn && task.data.isPeriodic || task.runCount === 0)) {
+            task.zone.cancelTask(task);
+          }
+        } else {
+          delegate.apply(window, args);
+        }
+      };
+    });
+  }
+  var _defineProperty = Object[zoneSymbol('defineProperty')] = Object.defineProperty;
+  var _getOwnPropertyDescriptor = Object[zoneSymbol('getOwnPropertyDescriptor')] = Object.getOwnPropertyDescriptor;
+  var _create = Object.create;
+  var unconfigurablesKey = zoneSymbol('unconfigurables');
+  function propertyPatch() {
+    Object.defineProperty = function(obj, prop, desc) {
+      if (isUnconfigurable(obj, prop)) {
+        throw new TypeError('Cannot assign to read only property \'' + prop + '\' of ' + obj);
+      }
+      var originalConfigurableFlag = desc.configurable;
+      if (prop !== 'prototype') {
+        desc = rewriteDescriptor(obj, prop, desc);
+      }
+      return _tryDefineProperty(obj, prop, desc, originalConfigurableFlag);
+    };
+    Object.defineProperties = function(obj, props) {
+      Object.keys(props).forEach(function(prop) {
+        Object.defineProperty(obj, prop, props[prop]);
+      });
+      return obj;
+    };
+    Object.create = function(obj, proto) {
+      if (typeof proto === 'object' && !Object.isFrozen(proto)) {
+        Object.keys(proto).forEach(function(prop) {
+          proto[prop] = rewriteDescriptor(obj, prop, proto[prop]);
+        });
+      }
+      return _create(obj, proto);
+    };
+    Object.getOwnPropertyDescriptor = function(obj, prop) {
+      var desc = _getOwnPropertyDescriptor(obj, prop);
+      if (isUnconfigurable(obj, prop)) {
+        desc.configurable = false;
+      }
+      return desc;
+    };
+  }
+  function _redefineProperty(obj, prop, desc) {
+    var originalConfigurableFlag = desc.configurable;
+    desc = rewriteDescriptor(obj, prop, desc);
+    return _tryDefineProperty(obj, prop, desc, originalConfigurableFlag);
+  }
+  function isUnconfigurable(obj, prop) {
+    return obj && obj[unconfigurablesKey] && obj[unconfigurablesKey][prop];
+  }
+  function rewriteDescriptor(obj, prop, desc) {
+    desc.configurable = true;
+    if (!desc.configurable) {
+      if (!obj[unconfigurablesKey]) {
+        _defineProperty(obj, unconfigurablesKey, {
+          writable: true,
+          value: {}
+        });
+      }
+      obj[unconfigurablesKey][prop] = true;
+    }
+    return desc;
+  }
+  function _tryDefineProperty(obj, prop, desc, originalConfigurableFlag) {
+    try {
+      return _defineProperty(obj, prop, desc);
+    } catch (error) {
+      if (desc.configurable) {
+        if (typeof originalConfigurableFlag == 'undefined') {
+          delete desc.configurable;
+        } else {
+          desc.configurable = originalConfigurableFlag;
+        }
+        try {
+          return _defineProperty(obj, prop, desc);
+        } catch (error) {
+          var descJson = null;
+          try {
+            descJson = JSON.stringify(desc);
+          } catch (error) {
+            descJson = descJson.toString();
+          }
+          console.log("Attempting to configure '" + prop + "' with descriptor '" + descJson + "' on object '" + obj + "' and got error, giving up: " + error);
+        }
+      } else {
+        throw error;
+      }
+    }
+  }
+  function apply(api, _global) {
+    var WS = _global.WebSocket;
+    if (!_global.EventTarget) {
+      patchEventTarget(api, _global, [WS.prototype]);
+    }
+    _global.WebSocket = function(a, b) {
+      var socket = arguments.length > 1 ? new WS(a, b) : new WS(a);
+      var proxySocket;
+      var proxySocketProto;
+      var onmessageDesc = Object.getOwnPropertyDescriptor(socket, 'onmessage');
+      if (onmessageDesc && onmessageDesc.configurable === false) {
+        proxySocket = Object.create(socket);
+        proxySocketProto = socket;
+        ['addEventListener', 'removeEventListener', 'send', 'close'].forEach(function(propName) {
+          proxySocket[propName] = function() {
+            return socket[propName].apply(socket, arguments);
+          };
+        });
+      } else {
+        proxySocket = socket;
+      }
+      patchOnProperties(proxySocket, ['close', 'error', 'message', 'open'], proxySocketProto);
+      return proxySocket;
+    };
+    for (var prop in WS) {
+      _global['WebSocket'][prop] = WS[prop];
+    }
+  }
+  var globalEventHandlersEventNames = ['abort', 'animationcancel', 'animationend', 'animationiteration', 'auxclick', 'beforeinput', 'blur', 'cancel', 'canplay', 'canplaythrough', 'change', 'compositionstart', 'compositionupdate', 'compositionend', 'cuechange', 'click', 'close', 'contextmenu', 'curechange', 'dblclick', 'drag', 'dragend', 'dragenter', 'dragexit', 'dragleave', 'dragover', 'drop', 'durationchange', 'emptied', 'ended', 'error', 'focus', 'focusin', 'focusout', 'gotpointercapture', 'input', 'invalid', 'keydown', 'keypress', 'keyup', 'load', 'loadstart', 'loadeddata', 'loadedmetadata', 'lostpointercapture', 'mousedown', 'mouseenter', 'mouseleave', 'mousemove', 'mouseout', 'mouseover', 'mouseup', 'mousewheel', 'pause', 'play', 'playing', 'pointercancel', 'pointerdown', 'pointerenter', 'pointerleave', 'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockerchange', 'pointerlockerror', 'mozpointerlockerror', 'webkitpointerlockerror', 'pointermove', 'pointout', 'pointerover', 'pointerup', 'progress', 'ratechange', 'reset', 'resize', 'scroll', 'seeked', 'seeking', 'select', 'selectionchange', 'selectstart', 'show', 'sort', 'stalled', 'submit', 'suspend', 'timeupdate', 'volumechange', 'touchcancel', 'touchmove', 'touchstart', 'transitioncancel', 'transitionend', 'waiting', 'wheel'];
+  var documentEventNames = ['afterscriptexecute', 'beforescriptexecute', 'DOMContentLoaded', 'fullscreenchange', 'mozfullscreenchange', 'webkitfullscreenchange', 'msfullscreenchange', 'fullscreenerror', 'mozfullscreenerror', 'webkitfullscreenerror', 'msfullscreenerror', 'readystatechange'];
+  var windowEventNames = ['absolutedeviceorientation', 'afterinput', 'afterprint', 'appinstalled', 'beforeinstallprompt', 'beforeprint', 'beforeunload', 'devicelight', 'devicemotion', 'deviceorientation', 'deviceorientationabsolute', 'deviceproximity', 'hashchange', 'languagechange', 'message', 'mozbeforepaint', 'offline', 'online', 'paint', 'pageshow', 'pagehide', 'popstate', 'rejectionhandled', 'storage', 'unhandledrejection', 'unload', 'userproximity', 'vrdisplyconnected', 'vrdisplaydisconnected', 'vrdisplaypresentchange'];
+  var htmlElementEventNames = ['beforecopy', 'beforecut', 'beforepaste', 'copy', 'cut', 'paste', 'dragstart', 'loadend', 'animationstart', 'search', 'transitionrun', 'transitionstart', 'webkitanimationend', 'webkitanimationiteration', 'webkitanimationstart', 'webkittransitionend'];
+  var mediaElementEventNames = ['encrypted', 'waitingforkey', 'msneedkey', 'mozinterruptbegin', 'mozinterruptend'];
+  var ieElementEventNames = ['activate', 'afterupdate', 'ariarequest', 'beforeactivate', 'beforedeactivate', 'beforeeditfocus', 'beforeupdate', 'cellchange', 'controlselect', 'dataavailable', 'datasetchanged', 'datasetcomplete', 'errorupdate', 'filterchange', 'layoutcomplete', 'losecapture', 'move', 'moveend', 'movestart', 'propertychange', 'resizeend', 'resizestart', 'rowenter', 'rowexit', 'rowsdelete', 'rowsinserted', 'command', 'compassneedscalibration', 'deactivate', 'help', 'mscontentzoom', 'msmanipulationstatechanged', 'msgesturechange', 'msgesturedoubletap', 'msgestureend', 'msgesturehold', 'msgesturestart', 'msgesturetap', 'msgotpointercapture', 'msinertiastart', 'mslostpointercapture', 'mspointercancel', 'mspointerdown', 'mspointerenter', 'mspointerhover', 'mspointerleave', 'mspointermove', 'mspointerout', 'mspointerover', 'mspointerup', 'pointerout', 'mssitemodejumplistitemremoved', 'msthumbnailclick', 'stop', 'storagecommit'];
+  var webglEventNames = ['webglcontextrestored', 'webglcontextlost', 'webglcontextcreationerror'];
+  var formEventNames = ['autocomplete', 'autocompleteerror'];
+  var detailEventNames = ['toggle'];
+  var frameEventNames = ['load'];
+  var frameSetEventNames = ['blur', 'error', 'focus', 'load', 'resize', 'scroll'];
+  var marqueeEventNames = ['bounce', 'finish', 'start'];
+  var XMLHttpRequestEventNames = ['loadstart', 'progress', 'abort', 'error', 'load', 'progress', 'timeout', 'loadend', 'readystatechange'];
+  var IDBIndexEventNames = ['upgradeneeded', 'complete', 'abort', 'success', 'error', 'blocked', 'versionchange', 'close'];
+  var websocketEventNames = ['close', 'error', 'open', 'message'];
+  var eventNames = globalEventHandlersEventNames.concat(webglEventNames, formEventNames, detailEventNames, documentEventNames, windowEventNames, htmlElementEventNames, ieElementEventNames);
+  function propertyDescriptorPatch(api, _global) {
+    if (isNode && !isMix) {
+      return;
+    }
+    var supportsWebSocket = typeof WebSocket !== 'undefined';
+    if (canPatchViaPropertyDescriptor()) {
+      if (isBrowser) {
+        patchOnProperties(window, eventNames, Object.getPrototypeOf(window));
+        patchOnProperties(Document.prototype, eventNames);
+        if (typeof window['SVGElement'] !== 'undefined') {
+          patchOnProperties(window['SVGElement'].prototype, eventNames);
+        }
+        patchOnProperties(Element.prototype, eventNames);
+        patchOnProperties(HTMLElement.prototype, eventNames);
+        patchOnProperties(HTMLMediaElement.prototype, mediaElementEventNames);
+        patchOnProperties(HTMLFrameSetElement.prototype, windowEventNames.concat(frameSetEventNames));
+        patchOnProperties(HTMLBodyElement.prototype, windowEventNames.concat(frameSetEventNames));
+        patchOnProperties(HTMLFrameElement.prototype, frameEventNames);
+        patchOnProperties(HTMLIFrameElement.prototype, frameEventNames);
+        var HTMLMarqueeElement_1 = window['HTMLMarqueeElement'];
+        if (HTMLMarqueeElement_1) {
+          patchOnProperties(HTMLMarqueeElement_1.prototype, marqueeEventNames);
+        }
+      }
+      patchOnProperties(XMLHttpRequest.prototype, XMLHttpRequestEventNames);
+      var XMLHttpRequestEventTarget = _global['XMLHttpRequestEventTarget'];
+      if (XMLHttpRequestEventTarget) {
+        patchOnProperties(XMLHttpRequestEventTarget && XMLHttpRequestEventTarget.prototype, XMLHttpRequestEventNames);
+      }
+      if (typeof IDBIndex !== 'undefined') {
+        patchOnProperties(IDBIndex.prototype, IDBIndexEventNames);
+        patchOnProperties(IDBRequest.prototype, IDBIndexEventNames);
+        patchOnProperties(IDBOpenDBRequest.prototype, IDBIndexEventNames);
+        patchOnProperties(IDBDatabase.prototype, IDBIndexEventNames);
+        patchOnProperties(IDBTransaction.prototype, IDBIndexEventNames);
+        patchOnProperties(IDBCursor.prototype, IDBIndexEventNames);
+      }
+      if (supportsWebSocket) {
+        patchOnProperties(WebSocket.prototype, websocketEventNames);
+      }
+    } else {
+      patchViaCapturingAllTheEvents();
+      patchClass('XMLHttpRequest');
+      if (supportsWebSocket) {
+        apply(api, _global);
+      }
+    }
+  }
+  function canPatchViaPropertyDescriptor() {
+    if ((isBrowser || isMix) && !Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'onclick') && typeof Element !== 'undefined') {
+      var desc = Object.getOwnPropertyDescriptor(Element.prototype, 'onclick');
+      if (desc && !desc.configurable)
+        return false;
+    }
+    var xhrDesc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'onreadystatechange');
+    if (xhrDesc) {
+      Object.defineProperty(XMLHttpRequest.prototype, 'onreadystatechange', {
+        enumerable: true,
+        configurable: true,
+        get: function() {
+          return true;
+        }
+      });
+      var req = new XMLHttpRequest();
+      var result = !!req.onreadystatechange;
+      Object.defineProperty(XMLHttpRequest.prototype, 'onreadystatechange', xhrDesc || {});
+      return result;
+    } else {
+      Object.defineProperty(XMLHttpRequest.prototype, 'onreadystatechange', {
+        enumerable: true,
+        configurable: true,
+        get: function() {
+          return this[zoneSymbol('fakeonreadystatechange')];
+        },
+        set: function(value) {
+          this[zoneSymbol('fakeonreadystatechange')] = value;
+        }
+      });
+      var req = new XMLHttpRequest();
+      var detectFunc = function() {};
+      req.onreadystatechange = detectFunc;
+      var result = req[zoneSymbol('fakeonreadystatechange')] === detectFunc;
+      req.onreadystatechange = null;
+      return result;
+    }
+  }
+  var unboundKey = zoneSymbol('unbound');
+  function patchViaCapturingAllTheEvents() {
+    var _loop_1 = function(i) {
+      var property = eventNames[i];
+      var onproperty = 'on' + property;
+      self.addEventListener(property, function(event) {
+        var elt = event.target,
+            bound,
+            source;
+        if (elt) {
+          source = elt.constructor['name'] + '.' + onproperty;
+        } else {
+          source = 'unknown.' + onproperty;
+        }
+        while (elt) {
+          if (elt[onproperty] && !elt[onproperty][unboundKey]) {
+            bound = Zone.current.wrap(elt[onproperty], source);
+            bound[unboundKey] = elt[onproperty];
+            elt[onproperty] = bound;
+          }
+          elt = elt.parentElement;
+        }
+      }, true);
+    };
+    for (var i = 0; i < eventNames.length; i++) {
+      _loop_1(i);
+    }
+  }
+  function eventTargetPatch(_global, api) {
+    var WTF_ISSUE_555 = 'Anchor,Area,Audio,BR,Base,BaseFont,Body,Button,Canvas,Content,DList,Directory,Div,Embed,FieldSet,Font,Form,Frame,FrameSet,HR,Head,Heading,Html,IFrame,Image,Input,Keygen,LI,Label,Legend,Link,Map,Marquee,Media,Menu,Meta,Meter,Mod,OList,Object,OptGroup,Option,Output,Paragraph,Pre,Progress,Quote,Script,Select,Source,Span,Style,TableCaption,TableCell,TableCol,Table,TableRow,TableSection,TextArea,Title,Track,UList,Unknown,Video';
+    var NO_EVENT_TARGET = 'ApplicationCache,EventSource,FileReader,InputMethodContext,MediaController,MessagePort,Node,Performance,SVGElementInstance,SharedWorker,TextTrack,TextTrackCue,TextTrackList,WebKitNamedFlow,Window,Worker,WorkerGlobalScope,XMLHttpRequest,XMLHttpRequestEventTarget,XMLHttpRequestUpload,IDBRequest,IDBOpenDBRequest,IDBDatabase,IDBTransaction,IDBCursor,DBIndex,WebSocket'.split(',');
+    var EVENT_TARGET = 'EventTarget';
+    var apis = [];
+    var isWtf = _global['wtf'];
+    var WTF_ISSUE_555_ARRAY = WTF_ISSUE_555.split(',');
+    if (isWtf) {
+      apis = WTF_ISSUE_555_ARRAY.map(function(v) {
+        return 'HTML' + v + 'Element';
+      }).concat(NO_EVENT_TARGET);
+    } else if (_global[EVENT_TARGET]) {
+      apis.push(EVENT_TARGET);
+    } else {
+      apis = NO_EVENT_TARGET;
+    }
+    var isDisableIECheck = _global['__Zone_disable_IE_check'] || false;
+    var isEnableCrossContextCheck = _global['__Zone_enable_cross_context_check'] || false;
+    var ieOrEdge = isIEOrEdge();
+    var ADD_EVENT_LISTENER_SOURCE = '.addEventListener:';
+    var FUNCTION_WRAPPER = '[object FunctionWrapper]';
+    var BROWSER_TOOLS = 'function __BROWSERTOOLS_CONSOLE_SAFEFUNC() { [native code] }';
+    for (var i = 0; i < eventNames.length; i++) {
+      var eventName = eventNames[i];
+      var falseEventName = eventName + FALSE_STR;
+      var trueEventName = eventName + TRUE_STR;
+      var symbol = ZONE_SYMBOL_PREFIX + falseEventName;
+      var symbolCapture = ZONE_SYMBOL_PREFIX + trueEventName;
+      zoneSymbolEventNames[eventName] = {};
+      zoneSymbolEventNames[eventName][FALSE_STR] = symbol;
+      zoneSymbolEventNames[eventName][TRUE_STR] = symbolCapture;
+    }
+    for (var i = 0; i < WTF_ISSUE_555.length; i++) {
+      var target = WTF_ISSUE_555_ARRAY[i];
+      var targets = globalSources[target] = {};
+      for (var j = 0; j < eventNames.length; j++) {
+        var eventName = eventNames[j];
+        targets[eventName] = target + ADD_EVENT_LISTENER_SOURCE + eventName;
+      }
+    }
+    var checkIEAndCrossContext = function(nativeDelegate, delegate, target, args) {
+      if (!isDisableIECheck && ieOrEdge) {
+        if (isEnableCrossContextCheck) {
+          try {
+            var testString = delegate.toString();
+            if ((testString === FUNCTION_WRAPPER || testString == BROWSER_TOOLS)) {
+              nativeDelegate.apply(target, args);
+              return false;
+            }
+          } catch (error) {
+            nativeDelegate.apply(target, args);
+            return false;
+          }
+        } else {
+          var testString = delegate.toString();
+          if ((testString === FUNCTION_WRAPPER || testString == BROWSER_TOOLS)) {
+            nativeDelegate.apply(target, args);
+            return false;
+          }
+        }
+      } else if (isEnableCrossContextCheck) {
+        try {
+          delegate.toString();
+        } catch (error) {
+          nativeDelegate.apply(target, args);
+          return false;
+        }
+      }
+      return true;
+    };
+    var apiTypes = [];
+    for (var i = 0; i < apis.length; i++) {
+      var type = _global[apis[i]];
+      apiTypes.push(type && type.prototype);
+    }
+    patchEventTarget(_global, apiTypes, {validateHandler: checkIEAndCrossContext});
+    api.patchEventTarget = patchEventTarget;
+    return true;
+  }
+  function registerElementPatch(_global) {
+    if ((!isBrowser && !isMix) || !('registerElement' in _global.document)) {
+      return;
+    }
+    var _registerElement = document.registerElement;
+    var callbacks = ['createdCallback', 'attachedCallback', 'detachedCallback', 'attributeChangedCallback'];
+    document.registerElement = function(name, opts) {
+      if (opts && opts.prototype) {
+        callbacks.forEach(function(callback) {
+          var source = 'Document.registerElement::' + callback;
+          if (opts.prototype.hasOwnProperty(callback)) {
+            var descriptor = Object.getOwnPropertyDescriptor(opts.prototype, callback);
+            if (descriptor && descriptor.value) {
+              descriptor.value = Zone.current.wrap(descriptor.value, source);
+              _redefineProperty(opts.prototype, callback, descriptor);
+            } else {
+              opts.prototype[callback] = Zone.current.wrap(opts.prototype[callback], source);
+            }
+          } else if (opts.prototype[callback]) {
+            opts.prototype[callback] = Zone.current.wrap(opts.prototype[callback], source);
+          }
+        });
+      }
+      return _registerElement.apply(document, [name, opts]);
+    };
+    attachOriginToPatched(document.registerElement, _registerElement);
+  }
+  Zone.__load_patch('timers', function(global, Zone, api) {
+    var set = 'set';
+    var clear = 'clear';
+    patchTimer(global, set, clear, 'Timeout');
+    patchTimer(global, set, clear, 'Interval');
+    patchTimer(global, set, clear, 'Immediate');
+    patchTimer(global, 'request', 'cancel', 'AnimationFrame');
+    patchTimer(global, 'mozRequest', 'mozCancel', 'AnimationFrame');
+    patchTimer(global, 'webkitRequest', 'webkitCancel', 'AnimationFrame');
+  });
+  Zone.__load_patch('blocking', function(global, Zone, api) {
+    var blockingMethods = ['alert', 'prompt', 'confirm'];
+    for (var i = 0; i < blockingMethods.length; i++) {
+      var name_1 = blockingMethods[i];
+      patchMethod(global, name_1, function(delegate, symbol, name) {
+        return function(s, args) {
+          return Zone.current.run(delegate, global, args, name);
+        };
+      });
+    }
+  });
+  Zone.__load_patch('EventTarget', function(global, Zone, api) {
+    eventTargetPatch(global, api);
+    var XMLHttpRequestEventTarget = global['XMLHttpRequestEventTarget'];
+    if (XMLHttpRequestEventTarget && XMLHttpRequestEventTarget.prototype) {
+      api.patchEventTarget(global, [XMLHttpRequestEventTarget.prototype]);
+    }
+    patchClass('MutationObserver');
+    patchClass('WebKitMutationObserver');
+    patchClass('FileReader');
+  });
+  Zone.__load_patch('on_property', function(global, Zone, api) {
+    propertyDescriptorPatch(api, global);
+    propertyPatch();
+    registerElementPatch(global);
+  });
+  Zone.__load_patch('canvas', function(global, Zone, api) {
+    var HTMLCanvasElement = global['HTMLCanvasElement'];
+    if (typeof HTMLCanvasElement !== 'undefined' && HTMLCanvasElement.prototype && HTMLCanvasElement.prototype.toBlob) {
+      patchMacroTask(HTMLCanvasElement.prototype, 'toBlob', function(self, args) {
+        return {
+          name: 'HTMLCanvasElement.toBlob',
+          target: self,
+          callbackIndex: 0,
+          args: args
+        };
+      });
+    }
+  });
+  Zone.__load_patch('XHR', function(global, Zone, api) {
+    patchXHR(global);
+    var XHR_TASK = zoneSymbol('xhrTask');
+    var XHR_SYNC = zoneSymbol('xhrSync');
+    var XHR_LISTENER = zoneSymbol('xhrListener');
+    var XHR_SCHEDULED = zoneSymbol('xhrScheduled');
+    function patchXHR(window) {
+      function findPendingTask(target) {
+        var pendingTask = target[XHR_TASK];
+        return pendingTask;
+      }
+      function scheduleTask(task) {
+        XMLHttpRequest[XHR_SCHEDULED] = false;
+        var data = task.data;
+        var listener = data.target[XHR_LISTENER];
+        var oriAddListener = data.target[zoneSymbol('addEventListener')];
+        var oriRemoveListener = data.target[zoneSymbol('removeEventListener')];
+        if (listener) {
+          oriRemoveListener.apply(data.target, ['readystatechange', listener]);
+        }
+        var newListener = data.target[XHR_LISTENER] = function() {
+          if (data.target.readyState === data.target.DONE) {
+            if (!data.aborted && XMLHttpRequest[XHR_SCHEDULED] && task.state === 'scheduled') {
+              task.invoke();
+            }
+          }
+        };
+        oriAddListener.apply(data.target, ['readystatechange', newListener]);
+        var storedTask = data.target[XHR_TASK];
+        if (!storedTask) {
+          data.target[XHR_TASK] = task;
+        }
+        sendNative.apply(data.target, data.args);
+        XMLHttpRequest[XHR_SCHEDULED] = true;
+        return task;
+      }
+      function placeholderCallback() {}
+      function clearTask(task) {
+        var data = task.data;
+        data.aborted = true;
+        return abortNative.apply(data.target, data.args);
+      }
+      var openNative = patchMethod(window.XMLHttpRequest.prototype, 'open', function() {
+        return function(self, args) {
+          self[XHR_SYNC] = args[2] == false;
+          return openNative.apply(self, args);
+        };
+      });
+      var sendNative = patchMethod(window.XMLHttpRequest.prototype, 'send', function() {
+        return function(self, args) {
+          var zone = Zone.current;
+          if (self[XHR_SYNC]) {
+            return sendNative.apply(self, args);
+          } else {
+            var options = {
+              target: self,
+              isPeriodic: false,
+              delay: null,
+              args: args,
+              aborted: false
+            };
+            return zone.scheduleMacroTask('XMLHttpRequest.send', placeholderCallback, options, scheduleTask, clearTask);
+          }
+        };
+      });
+      var abortNative = patchMethod(window.XMLHttpRequest.prototype, 'abort', function(delegate) {
+        return function(self, args) {
+          var task = findPendingTask(self);
+          if (task && typeof task.type == 'string') {
+            if (task.cancelFn == null || (task.data && task.data.aborted)) {
+              return;
+            }
+            task.zone.cancelTask(task);
+          }
+        };
+      });
+    }
+  });
+  Zone.__load_patch('geolocation', function(global, Zone, api) {
+    if (global['navigator'] && global['navigator'].geolocation) {
+      patchPrototype(global['navigator'].geolocation, ['getCurrentPosition', 'watchPosition']);
+    }
+  });
+  Zone.__load_patch('PromiseRejectionEvent', function(global, Zone, api) {
+    function findPromiseRejectionHandler(evtName) {
+      return function(e) {
+        var eventTasks = findEventTasks(global, evtName);
+        eventTasks.forEach(function(eventTask) {
+          var PromiseRejectionEvent = global['PromiseRejectionEvent'];
+          if (PromiseRejectionEvent) {
+            var evt = new PromiseRejectionEvent(evtName, {
+              promise: e.promise,
+              reason: e.rejection
+            });
+            eventTask.invoke(evt);
+          }
+        });
+      };
+    }
+    if (global['PromiseRejectionEvent']) {
+      Zone[zoneSymbol('unhandledPromiseRejectionHandler')] = findPromiseRejectionHandler('unhandledrejection');
+      Zone[zoneSymbol('rejectionHandledHandler')] = findPromiseRejectionHandler('rejectionhandled');
+    }
+  });
+  Zone.__load_patch('util', function(global, Zone, api) {
+    api.patchOnProperties = patchOnProperties;
+    api.patchMethod = patchMethod;
+  });
+})));
+
+})();
+System.registerDynamic("node_modules/reflect-metadata/Reflect.js", [], false, function ($__require, $__exports, $__module) {
+    var _retrieveGlobal = System.get("@@global-helpers").prepareGlobal($__module.id, null, null);
+
+    (function ($__global) {
+        var Reflect = $__global["Reflect"];
+        /*! *****************************************************************************
+        Copyright (C) Microsoft. All rights reserved.
+        Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+        this file except in compliance with the License. You may obtain a copy of the
+        License at http://www.apache.org/licenses/LICENSE-2.0
+        
+        THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+        KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+        WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+        MERCHANTABLITY OR NON-INFRINGEMENT.
+        
+        See the Apache Version 2.0 License for specific language governing permissions
+        and limitations under the License.
+        ***************************************************************************** */
+        var Reflect;
+        (function (Reflect) {
+            "use strict";
+
+            var hasOwn = Object.prototype.hasOwnProperty;
+            // feature test for Symbol support
+            var supportsSymbol = typeof Symbol === "function";
+            var toPrimitiveSymbol = supportsSymbol && typeof Symbol.toPrimitive !== "undefined" ? Symbol.toPrimitive : "@@toPrimitive";
+            var iteratorSymbol = supportsSymbol && typeof Symbol.iterator !== "undefined" ? Symbol.iterator : "@@iterator";
+            var HashMap;
+            (function (HashMap) {
+                var supportsCreate = typeof Object.create === "function"; // feature test for Object.create support
+                var supportsProto = { __proto__: [] } instanceof Array; // feature test for __proto__ support
+                var downLevel = !supportsCreate && !supportsProto;
+                // create an object in dictionary mode (a.k.a. "slow" mode in v8)
+                HashMap.create = supportsCreate ? function () {
+                    return MakeDictionary(Object.create(null));
+                } : supportsProto ? function () {
+                    return MakeDictionary({ __proto__: null });
+                } : function () {
+                    return MakeDictionary({});
+                };
+                HashMap.has = downLevel ? function (map, key) {
+                    return hasOwn.call(map, key);
+                } : function (map, key) {
+                    return key in map;
+                };
+                HashMap.get = downLevel ? function (map, key) {
+                    return hasOwn.call(map, key) ? map[key] : undefined;
+                } : function (map, key) {
+                    return map[key];
+                };
+            })(HashMap || (HashMap = {}));
+            // Load global or shim versions of Map, Set, and WeakMap
+            var functionPrototype = Object.getPrototypeOf(Function);
+            var usePolyfill = typeof process === "object" && process.env && process.env["REFLECT_METADATA_USE_MAP_POLYFILL"] === "true";
+            var _Map = !usePolyfill && typeof Map === "function" && typeof Map.prototype.entries === "function" ? Map : CreateMapPolyfill();
+            var _Set = !usePolyfill && typeof Set === "function" && typeof Set.prototype.entries === "function" ? Set : CreateSetPolyfill();
+            var _WeakMap = !usePolyfill && typeof WeakMap === "function" ? WeakMap : CreateWeakMapPolyfill();
+            // [[Metadata]] internal slot
+            // https://rbuckton.github.io/reflect-metadata/#ordinary-object-internal-methods-and-internal-slots
+            var Metadata = new _WeakMap();
+            /**
+              * Applies a set of decorators to a property of a target object.
+              * @param decorators An array of decorators.
+              * @param target The target object.
+              * @param propertyKey (Optional) The property key to decorate.
+              * @param attributes (Optional) The property descriptor for the target key.
+              * @remarks Decorators are applied in reverse order.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     Example = Reflect.decorate(decoratorsArray, Example);
+              *
+              *     // property (on constructor)
+              *     Reflect.decorate(decoratorsArray, Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     Reflect.decorate(decoratorsArray, Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     Object.defineProperty(Example, "staticMethod",
+              *         Reflect.decorate(decoratorsArray, Example, "staticMethod",
+              *             Object.getOwnPropertyDescriptor(Example, "staticMethod")));
+              *
+              *     // method (on prototype)
+              *     Object.defineProperty(Example.prototype, "method",
+              *         Reflect.decorate(decoratorsArray, Example.prototype, "method",
+              *             Object.getOwnPropertyDescriptor(Example.prototype, "method")));
+              *
+              */
+            function decorate(decorators, target, propertyKey, attributes) {
+                if (!IsUndefined(propertyKey)) {
+                    if (!IsArray(decorators)) throw new TypeError();
+                    if (!IsObject(target)) throw new TypeError();
+                    if (!IsObject(attributes) && !IsUndefined(attributes) && !IsNull(attributes)) throw new TypeError();
+                    if (IsNull(attributes)) attributes = undefined;
+                    propertyKey = ToPropertyKey(propertyKey);
+                    return DecorateProperty(decorators, target, propertyKey, attributes);
+                } else {
+                    if (!IsArray(decorators)) throw new TypeError();
+                    if (!IsConstructor(target)) throw new TypeError();
+                    return DecorateConstructor(decorators, target);
+                }
+            }
+            Reflect.decorate = decorate;
+            // 4.1.2 Reflect.metadata(metadataKey, metadataValue)
+            // https://rbuckton.github.io/reflect-metadata/#reflect.metadata
+            /**
+              * A default metadata decorator factory that can be used on a class, class member, or parameter.
+              * @param metadataKey The key for the metadata entry.
+              * @param metadataValue The value for the metadata entry.
+              * @returns A decorator function.
+              * @remarks
+              * If `metadataKey` is already defined for the target and target key, the
+              * metadataValue for that key will be overwritten.
+              * @example
+              *
+              *     // constructor
+              *     @Reflect.metadata(key, value)
+              *     class Example {
+              *     }
+              *
+              *     // property (on constructor, TypeScript only)
+              *     class Example {
+              *         @Reflect.metadata(key, value)
+              *         static staticProperty;
+              *     }
+              *
+              *     // property (on prototype, TypeScript only)
+              *     class Example {
+              *         @Reflect.metadata(key, value)
+              *         property;
+              *     }
+              *
+              *     // method (on constructor)
+              *     class Example {
+              *         @Reflect.metadata(key, value)
+              *         static staticMethod() { }
+              *     }
+              *
+              *     // method (on prototype)
+              *     class Example {
+              *         @Reflect.metadata(key, value)
+              *         method() { }
+              *     }
+              *
+              */
+            function metadata(metadataKey, metadataValue) {
+                function decorator(target, propertyKey) {
+                    if (!IsObject(target)) throw new TypeError();
+                    if (!IsUndefined(propertyKey) && !IsPropertyKey(propertyKey)) throw new TypeError();
+                    OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
+                }
+                return decorator;
+            }
+            Reflect.metadata = metadata;
+            /**
+              * Define a unique metadata entry on the target.
+              * @param metadataKey A key used to store and retrieve metadata.
+              * @param metadataValue A value that contains attached metadata.
+              * @param target The target object on which to define metadata.
+              * @param propertyKey (Optional) The property key for the target.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     Reflect.defineMetadata("custom:annotation", options, Example);
+              *
+              *     // property (on constructor)
+              *     Reflect.defineMetadata("custom:annotation", options, Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     Reflect.defineMetadata("custom:annotation", options, Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     Reflect.defineMetadata("custom:annotation", options, Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     Reflect.defineMetadata("custom:annotation", options, Example.prototype, "method");
+              *
+              *     // decorator factory as metadata-producing annotation.
+              *     function MyAnnotation(options): Decorator {
+              *         return (target, key?) => Reflect.defineMetadata("custom:annotation", options, target, key);
+              *     }
+              *
+              */
+            function defineMetadata(metadataKey, metadataValue, target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                return OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
+            }
+            Reflect.defineMetadata = defineMetadata;
+            /**
+              * Gets a value indicating whether the target object or its prototype chain has the provided metadata key defined.
+              * @param metadataKey A key used to store and retrieve metadata.
+              * @param target The target object on which the metadata is defined.
+              * @param propertyKey (Optional) The property key for the target.
+              * @returns `true` if the metadata key was defined on the target object or its prototype chain; otherwise, `false`.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     result = Reflect.hasMetadata("custom:annotation", Example);
+              *
+              *     // property (on constructor)
+              *     result = Reflect.hasMetadata("custom:annotation", Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     result = Reflect.hasMetadata("custom:annotation", Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     result = Reflect.hasMetadata("custom:annotation", Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     result = Reflect.hasMetadata("custom:annotation", Example.prototype, "method");
+              *
+              */
+            function hasMetadata(metadataKey, target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                return OrdinaryHasMetadata(metadataKey, target, propertyKey);
+            }
+            Reflect.hasMetadata = hasMetadata;
+            /**
+              * Gets a value indicating whether the target object has the provided metadata key defined.
+              * @param metadataKey A key used to store and retrieve metadata.
+              * @param target The target object on which the metadata is defined.
+              * @param propertyKey (Optional) The property key for the target.
+              * @returns `true` if the metadata key was defined on the target object; otherwise, `false`.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     result = Reflect.hasOwnMetadata("custom:annotation", Example);
+              *
+              *     // property (on constructor)
+              *     result = Reflect.hasOwnMetadata("custom:annotation", Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     result = Reflect.hasOwnMetadata("custom:annotation", Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     result = Reflect.hasOwnMetadata("custom:annotation", Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     result = Reflect.hasOwnMetadata("custom:annotation", Example.prototype, "method");
+              *
+              */
+            function hasOwnMetadata(metadataKey, target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                return OrdinaryHasOwnMetadata(metadataKey, target, propertyKey);
+            }
+            Reflect.hasOwnMetadata = hasOwnMetadata;
+            /**
+              * Gets the metadata value for the provided metadata key on the target object or its prototype chain.
+              * @param metadataKey A key used to store and retrieve metadata.
+              * @param target The target object on which the metadata is defined.
+              * @param propertyKey (Optional) The property key for the target.
+              * @returns The metadata value for the metadata key if found; otherwise, `undefined`.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     result = Reflect.getMetadata("custom:annotation", Example);
+              *
+              *     // property (on constructor)
+              *     result = Reflect.getMetadata("custom:annotation", Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     result = Reflect.getMetadata("custom:annotation", Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     result = Reflect.getMetadata("custom:annotation", Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     result = Reflect.getMetadata("custom:annotation", Example.prototype, "method");
+              *
+              */
+            function getMetadata(metadataKey, target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                return OrdinaryGetMetadata(metadataKey, target, propertyKey);
+            }
+            Reflect.getMetadata = getMetadata;
+            /**
+              * Gets the metadata value for the provided metadata key on the target object.
+              * @param metadataKey A key used to store and retrieve metadata.
+              * @param target The target object on which the metadata is defined.
+              * @param propertyKey (Optional) The property key for the target.
+              * @returns The metadata value for the metadata key if found; otherwise, `undefined`.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     result = Reflect.getOwnMetadata("custom:annotation", Example);
+              *
+              *     // property (on constructor)
+              *     result = Reflect.getOwnMetadata("custom:annotation", Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     result = Reflect.getOwnMetadata("custom:annotation", Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     result = Reflect.getOwnMetadata("custom:annotation", Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     result = Reflect.getOwnMetadata("custom:annotation", Example.prototype, "method");
+              *
+              */
+            function getOwnMetadata(metadataKey, target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                return OrdinaryGetOwnMetadata(metadataKey, target, propertyKey);
+            }
+            Reflect.getOwnMetadata = getOwnMetadata;
+            /**
+              * Gets the metadata keys defined on the target object or its prototype chain.
+              * @param target The target object on which the metadata is defined.
+              * @param propertyKey (Optional) The property key for the target.
+              * @returns An array of unique metadata keys.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     result = Reflect.getMetadataKeys(Example);
+              *
+              *     // property (on constructor)
+              *     result = Reflect.getMetadataKeys(Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     result = Reflect.getMetadataKeys(Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     result = Reflect.getMetadataKeys(Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     result = Reflect.getMetadataKeys(Example.prototype, "method");
+              *
+              */
+            function getMetadataKeys(target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                return OrdinaryMetadataKeys(target, propertyKey);
+            }
+            Reflect.getMetadataKeys = getMetadataKeys;
+            /**
+              * Gets the unique metadata keys defined on the target object.
+              * @param target The target object on which the metadata is defined.
+              * @param propertyKey (Optional) The property key for the target.
+              * @returns An array of unique metadata keys.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     result = Reflect.getOwnMetadataKeys(Example);
+              *
+              *     // property (on constructor)
+              *     result = Reflect.getOwnMetadataKeys(Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     result = Reflect.getOwnMetadataKeys(Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     result = Reflect.getOwnMetadataKeys(Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     result = Reflect.getOwnMetadataKeys(Example.prototype, "method");
+              *
+              */
+            function getOwnMetadataKeys(target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                return OrdinaryOwnMetadataKeys(target, propertyKey);
+            }
+            Reflect.getOwnMetadataKeys = getOwnMetadataKeys;
+            /**
+              * Deletes the metadata entry from the target object with the provided key.
+              * @param metadataKey A key used to store and retrieve metadata.
+              * @param target The target object on which the metadata is defined.
+              * @param propertyKey (Optional) The property key for the target.
+              * @returns `true` if the metadata entry was found and deleted; otherwise, false.
+              * @example
+              *
+              *     class Example {
+              *         // property declarations are not part of ES6, though they are valid in TypeScript:
+              *         // static staticProperty;
+              *         // property;
+              *
+              *         constructor(p) { }
+              *         static staticMethod(p) { }
+              *         method(p) { }
+              *     }
+              *
+              *     // constructor
+              *     result = Reflect.deleteMetadata("custom:annotation", Example);
+              *
+              *     // property (on constructor)
+              *     result = Reflect.deleteMetadata("custom:annotation", Example, "staticProperty");
+              *
+              *     // property (on prototype)
+              *     result = Reflect.deleteMetadata("custom:annotation", Example.prototype, "property");
+              *
+              *     // method (on constructor)
+              *     result = Reflect.deleteMetadata("custom:annotation", Example, "staticMethod");
+              *
+              *     // method (on prototype)
+              *     result = Reflect.deleteMetadata("custom:annotation", Example.prototype, "method");
+              *
+              */
+            function deleteMetadata(metadataKey, target, propertyKey) {
+                if (!IsObject(target)) throw new TypeError();
+                if (!IsUndefined(propertyKey)) propertyKey = ToPropertyKey(propertyKey);
+                var metadataMap = GetOrCreateMetadataMap(target, propertyKey, /*Create*/false);
+                if (IsUndefined(metadataMap)) return false;
+                if (!metadataMap.delete(metadataKey)) return false;
+                if (metadataMap.size > 0) return true;
+                var targetMetadata = Metadata.get(target);
+                targetMetadata.delete(propertyKey);
+                if (targetMetadata.size > 0) return true;
+                Metadata.delete(target);
+                return true;
+            }
+            Reflect.deleteMetadata = deleteMetadata;
+            function DecorateConstructor(decorators, target) {
+                for (var i = decorators.length - 1; i >= 0; --i) {
+                    var decorator = decorators[i];
+                    var decorated = decorator(target);
+                    if (!IsUndefined(decorated) && !IsNull(decorated)) {
+                        if (!IsConstructor(decorated)) throw new TypeError();
+                        target = decorated;
+                    }
+                }
+                return target;
+            }
+            function DecorateProperty(decorators, target, propertyKey, descriptor) {
+                for (var i = decorators.length - 1; i >= 0; --i) {
+                    var decorator = decorators[i];
+                    var decorated = decorator(target, propertyKey, descriptor);
+                    if (!IsUndefined(decorated) && !IsNull(decorated)) {
+                        if (!IsObject(decorated)) throw new TypeError();
+                        descriptor = decorated;
+                    }
+                }
+                return descriptor;
+            }
+            function GetOrCreateMetadataMap(O, P, Create) {
+                var targetMetadata = Metadata.get(O);
+                if (IsUndefined(targetMetadata)) {
+                    if (!Create) return undefined;
+                    targetMetadata = new _Map();
+                    Metadata.set(O, targetMetadata);
+                }
+                var metadataMap = targetMetadata.get(P);
+                if (IsUndefined(metadataMap)) {
+                    if (!Create) return undefined;
+                    metadataMap = new _Map();
+                    targetMetadata.set(P, metadataMap);
+                }
+                return metadataMap;
+            }
+            // 3.1.1.1 OrdinaryHasMetadata(MetadataKey, O, P)
+            // https://rbuckton.github.io/reflect-metadata/#ordinaryhasmetadata
+            function OrdinaryHasMetadata(MetadataKey, O, P) {
+                var hasOwn = OrdinaryHasOwnMetadata(MetadataKey, O, P);
+                if (hasOwn) return true;
+                var parent = OrdinaryGetPrototypeOf(O);
+                if (!IsNull(parent)) return OrdinaryHasMetadata(MetadataKey, parent, P);
+                return false;
+            }
+            // 3.1.2.1 OrdinaryHasOwnMetadata(MetadataKey, O, P)
+            // https://rbuckton.github.io/reflect-metadata/#ordinaryhasownmetadata
+            function OrdinaryHasOwnMetadata(MetadataKey, O, P) {
+                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/false);
+                if (IsUndefined(metadataMap)) return false;
+                return ToBoolean(metadataMap.has(MetadataKey));
+            }
+            // 3.1.3.1 OrdinaryGetMetadata(MetadataKey, O, P)
+            // https://rbuckton.github.io/reflect-metadata/#ordinarygetmetadata
+            function OrdinaryGetMetadata(MetadataKey, O, P) {
+                var hasOwn = OrdinaryHasOwnMetadata(MetadataKey, O, P);
+                if (hasOwn) return OrdinaryGetOwnMetadata(MetadataKey, O, P);
+                var parent = OrdinaryGetPrototypeOf(O);
+                if (!IsNull(parent)) return OrdinaryGetMetadata(MetadataKey, parent, P);
+                return undefined;
+            }
+            // 3.1.4.1 OrdinaryGetOwnMetadata(MetadataKey, O, P)
+            // https://rbuckton.github.io/reflect-metadata/#ordinarygetownmetadata
+            function OrdinaryGetOwnMetadata(MetadataKey, O, P) {
+                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/false);
+                if (IsUndefined(metadataMap)) return undefined;
+                return metadataMap.get(MetadataKey);
+            }
+            // 3.1.5.1 OrdinaryDefineOwnMetadata(MetadataKey, MetadataValue, O, P)
+            // https://rbuckton.github.io/reflect-metadata/#ordinarydefineownmetadata
+            function OrdinaryDefineOwnMetadata(MetadataKey, MetadataValue, O, P) {
+                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/true);
+                metadataMap.set(MetadataKey, MetadataValue);
+            }
+            // 3.1.6.1 OrdinaryMetadataKeys(O, P)
+            // https://rbuckton.github.io/reflect-metadata/#ordinarymetadatakeys
+            function OrdinaryMetadataKeys(O, P) {
+                var ownKeys = OrdinaryOwnMetadataKeys(O, P);
+                var parent = OrdinaryGetPrototypeOf(O);
+                if (parent === null) return ownKeys;
+                var parentKeys = OrdinaryMetadataKeys(parent, P);
+                if (parentKeys.length <= 0) return ownKeys;
+                if (ownKeys.length <= 0) return parentKeys;
+                var set = new _Set();
+                var keys = [];
+                for (var _i = 0, ownKeys_1 = ownKeys; _i < ownKeys_1.length; _i++) {
+                    var key = ownKeys_1[_i];
+                    var hasKey = set.has(key);
+                    if (!hasKey) {
+                        set.add(key);
+                        keys.push(key);
+                    }
+                }
+                for (var _a = 0, parentKeys_1 = parentKeys; _a < parentKeys_1.length; _a++) {
+                    var key = parentKeys_1[_a];
+                    var hasKey = set.has(key);
+                    if (!hasKey) {
+                        set.add(key);
+                        keys.push(key);
+                    }
+                }
+                return keys;
+            }
+            // 3.1.7.1 OrdinaryOwnMetadataKeys(O, P)
+            // https://rbuckton.github.io/reflect-metadata/#ordinaryownmetadatakeys
+            function OrdinaryOwnMetadataKeys(O, P) {
+                var keys = [];
+                var metadataMap = GetOrCreateMetadataMap(O, P, /*Create*/false);
+                if (IsUndefined(metadataMap)) return keys;
+                var keysObj = metadataMap.keys();
+                var iterator = GetIterator(keysObj);
+                var k = 0;
+                while (true) {
+                    var next = IteratorStep(iterator);
+                    if (!next) {
+                        keys.length = k;
+                        return keys;
+                    }
+                    var nextValue = IteratorValue(next);
+                    try {
+                        keys[k] = nextValue;
+                    } catch (e) {
+                        try {
+                            IteratorClose(iterator);
+                        } finally {
+                            throw e;
+                        }
+                    }
+                    k++;
+                }
+            }
+            // 6 ECMAScript Data Typ0es and Values
+            // https://tc39.github.io/ecma262/#sec-ecmascript-data-types-and-values
+            function Type(x) {
+                if (x === null) return 1 /* Null */;
+                switch (typeof x) {
+                    case "undefined":
+                        return 0 /* Undefined */;
+                    case "boolean":
+                        return 2 /* Boolean */;
+                    case "string":
+                        return 3 /* String */;
+                    case "symbol":
+                        return 4 /* Symbol */;
+                    case "number":
+                        return 5 /* Number */;
+                    case "object":
+                        return x === null ? 1 /* Null */ : 6 /* Object */;
+                    default:
+                        return 6 /* Object */;
+                }
+            }
+            // 6.1.1 The Undefined Type
+            // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-undefined-type
+            function IsUndefined(x) {
+                return x === undefined;
+            }
+            // 6.1.2 The Null Type
+            // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-null-type
+            function IsNull(x) {
+                return x === null;
+            }
+            // 6.1.5 The Symbol Type
+            // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-symbol-type
+            function IsSymbol(x) {
+                return typeof x === "symbol";
+            }
+            // 6.1.7 The Object Type
+            // https://tc39.github.io/ecma262/#sec-object-type
+            function IsObject(x) {
+                return typeof x === "object" ? x !== null : typeof x === "function";
+            }
+            // 7.1 Type Conversion
+            // https://tc39.github.io/ecma262/#sec-type-conversion
+            // 7.1.1 ToPrimitive(input [, PreferredType])
+            // https://tc39.github.io/ecma262/#sec-toprimitive
+            function ToPrimitive(input, PreferredType) {
+                switch (Type(input)) {
+                    case 0 /* Undefined */:
+                        return input;
+                    case 1 /* Null */:
+                        return input;
+                    case 2 /* Boolean */:
+                        return input;
+                    case 3 /* String */:
+                        return input;
+                    case 4 /* Symbol */:
+                        return input;
+                    case 5 /* Number */:
+                        return input;
+                }
+                var hint = PreferredType === 3 /* String */ ? "string" : PreferredType === 5 /* Number */ ? "number" : "default";
+                var exoticToPrim = GetMethod(input, toPrimitiveSymbol);
+                if (exoticToPrim !== undefined) {
+                    var result = exoticToPrim.call(input, hint);
+                    if (IsObject(result)) throw new TypeError();
+                    return result;
+                }
+                return OrdinaryToPrimitive(input, hint === "default" ? "number" : hint);
+            }
+            // 7.1.1.1 OrdinaryToPrimitive(O, hint)
+            // https://tc39.github.io/ecma262/#sec-ordinarytoprimitive
+            function OrdinaryToPrimitive(O, hint) {
+                if (hint === "string") {
+                    var toString_1 = O.toString;
+                    if (IsCallable(toString_1)) {
+                        var result = toString_1.call(O);
+                        if (!IsObject(result)) return result;
+                    }
+                    var valueOf = O.valueOf;
+                    if (IsCallable(valueOf)) {
+                        var result = valueOf.call(O);
+                        if (!IsObject(result)) return result;
+                    }
+                } else {
+                    var valueOf = O.valueOf;
+                    if (IsCallable(valueOf)) {
+                        var result = valueOf.call(O);
+                        if (!IsObject(result)) return result;
+                    }
+                    var toString_2 = O.toString;
+                    if (IsCallable(toString_2)) {
+                        var result = toString_2.call(O);
+                        if (!IsObject(result)) return result;
+                    }
+                }
+                throw new TypeError();
+            }
+            // 7.1.2 ToBoolean(argument)
+            // https://tc39.github.io/ecma262/2016/#sec-toboolean
+            function ToBoolean(argument) {
+                return !!argument;
+            }
+            // 7.1.12 ToString(argument)
+            // https://tc39.github.io/ecma262/#sec-tostring
+            function ToString(argument) {
+                return "" + argument;
+            }
+            // 7.1.14 ToPropertyKey(argument)
+            // https://tc39.github.io/ecma262/#sec-topropertykey
+            function ToPropertyKey(argument) {
+                var key = ToPrimitive(argument, 3 /* String */);
+                if (IsSymbol(key)) return key;
+                return ToString(key);
+            }
+            // 7.2 Testing and Comparison Operations
+            // https://tc39.github.io/ecma262/#sec-testing-and-comparison-operations
+            // 7.2.2 IsArray(argument)
+            // https://tc39.github.io/ecma262/#sec-isarray
+            function IsArray(argument) {
+                return Array.isArray ? Array.isArray(argument) : argument instanceof Object ? argument instanceof Array : Object.prototype.toString.call(argument) === "[object Array]";
+            }
+            // 7.2.3 IsCallable(argument)
+            // https://tc39.github.io/ecma262/#sec-iscallable
+            function IsCallable(argument) {
+                // NOTE: This is an approximation as we cannot check for [[Call]] internal method.
+                return typeof argument === "function";
+            }
+            // 7.2.4 IsConstructor(argument)
+            // https://tc39.github.io/ecma262/#sec-isconstructor
+            function IsConstructor(argument) {
+                // NOTE: This is an approximation as we cannot check for [[Construct]] internal method.
+                return typeof argument === "function";
+            }
+            // 7.2.7 IsPropertyKey(argument)
+            // https://tc39.github.io/ecma262/#sec-ispropertykey
+            function IsPropertyKey(argument) {
+                switch (Type(argument)) {
+                    case 3 /* String */:
+                        return true;
+                    case 4 /* Symbol */:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+            // 7.3 Operations on Objects
+            // https://tc39.github.io/ecma262/#sec-operations-on-objects
+            // 7.3.9 GetMethod(V, P)
+            // https://tc39.github.io/ecma262/#sec-getmethod
+            function GetMethod(V, P) {
+                var func = V[P];
+                if (func === undefined || func === null) return undefined;
+                if (!IsCallable(func)) throw new TypeError();
+                return func;
+            }
+            // 7.4 Operations on Iterator Objects
+            // https://tc39.github.io/ecma262/#sec-operations-on-iterator-objects
+            function GetIterator(obj) {
+                var method = GetMethod(obj, iteratorSymbol);
+                if (!IsCallable(method)) throw new TypeError(); // from Call
+                var iterator = method.call(obj);
+                if (!IsObject(iterator)) throw new TypeError();
+                return iterator;
+            }
+            // 7.4.4 IteratorValue(iterResult)
+            // https://tc39.github.io/ecma262/2016/#sec-iteratorvalue
+            function IteratorValue(iterResult) {
+                return iterResult.value;
+            }
+            // 7.4.5 IteratorStep(iterator)
+            // https://tc39.github.io/ecma262/#sec-iteratorstep
+            function IteratorStep(iterator) {
+                var result = iterator.next();
+                return result.done ? false : result;
+            }
+            // 7.4.6 IteratorClose(iterator, completion)
+            // https://tc39.github.io/ecma262/#sec-iteratorclose
+            function IteratorClose(iterator) {
+                var f = iterator["return"];
+                if (f) f.call(iterator);
+            }
+            // 9.1 Ordinary Object Internal Methods and Internal Slots
+            // https://tc39.github.io/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
+            // 9.1.1.1 OrdinaryGetPrototypeOf(O)
+            // https://tc39.github.io/ecma262/#sec-ordinarygetprototypeof
+            function OrdinaryGetPrototypeOf(O) {
+                var proto = Object.getPrototypeOf(O);
+                if (typeof O !== "function" || O === functionPrototype) return proto;
+                // TypeScript doesn't set __proto__ in ES5, as it's non-standard.
+                // Try to determine the superclass constructor. Compatible implementations
+                // must either set __proto__ on a subclass constructor to the superclass constructor,
+                // or ensure each class has a valid `constructor` property on its prototype that
+                // points back to the constructor.
+                // If this is not the same as Function.[[Prototype]], then this is definately inherited.
+                // This is the case when in ES6 or when using __proto__ in a compatible browser.
+                if (proto !== functionPrototype) return proto;
+                // If the super prototype is Object.prototype, null, or undefined, then we cannot determine the heritage.
+                var prototype = O.prototype;
+                var prototypeProto = prototype && Object.getPrototypeOf(prototype);
+                if (prototypeProto == null || prototypeProto === Object.prototype) return proto;
+                // If the constructor was not a function, then we cannot determine the heritage.
+                var constructor = prototypeProto.constructor;
+                if (typeof constructor !== "function") return proto;
+                // If we have some kind of self-reference, then we cannot determine the heritage.
+                if (constructor === O) return proto;
+                // we have a pretty good guess at the heritage.
+                return constructor;
+            }
+            // naive Map shim
+            function CreateMapPolyfill() {
+                var cacheSentinel = {};
+                var arraySentinel = [];
+                var MapIterator = function () {
+                    function MapIterator(keys, values, selector) {
+                        this._index = 0;
+                        this._keys = keys;
+                        this._values = values;
+                        this._selector = selector;
+                    }
+                    MapIterator.prototype["@@iterator"] = function () {
+                        return this;
+                    };
+                    MapIterator.prototype[iteratorSymbol] = function () {
+                        return this;
+                    };
+                    MapIterator.prototype.next = function () {
+                        var index = this._index;
+                        if (index >= 0 && index < this._keys.length) {
+                            var result = this._selector(this._keys[index], this._values[index]);
+                            if (index + 1 >= this._keys.length) {
+                                this._index = -1;
+                                this._keys = arraySentinel;
+                                this._values = arraySentinel;
+                            } else {
+                                this._index++;
+                            }
+                            return { value: result, done: false };
+                        }
+                        return { value: undefined, done: true };
+                    };
+                    MapIterator.prototype.throw = function (error) {
+                        if (this._index >= 0) {
+                            this._index = -1;
+                            this._keys = arraySentinel;
+                            this._values = arraySentinel;
+                        }
+                        throw error;
+                    };
+                    MapIterator.prototype.return = function (value) {
+                        if (this._index >= 0) {
+                            this._index = -1;
+                            this._keys = arraySentinel;
+                            this._values = arraySentinel;
+                        }
+                        return { value: value, done: true };
+                    };
+                    return MapIterator;
+                }();
+                return function () {
+                    function Map() {
+                        this._keys = [];
+                        this._values = [];
+                        this._cacheKey = cacheSentinel;
+                        this._cacheIndex = -2;
+                    }
+                    Object.defineProperty(Map.prototype, "size", {
+                        get: function () {
+                            return this._keys.length;
+                        },
+                        enumerable: true,
+                        configurable: true
+                    });
+                    Map.prototype.has = function (key) {
+                        return this._find(key, /*insert*/false) >= 0;
+                    };
+                    Map.prototype.get = function (key) {
+                        var index = this._find(key, /*insert*/false);
+                        return index >= 0 ? this._values[index] : undefined;
+                    };
+                    Map.prototype.set = function (key, value) {
+                        var index = this._find(key, /*insert*/true);
+                        this._values[index] = value;
+                        return this;
+                    };
+                    Map.prototype.delete = function (key) {
+                        var index = this._find(key, /*insert*/false);
+                        if (index >= 0) {
+                            var size = this._keys.length;
+                            for (var i = index + 1; i < size; i++) {
+                                this._keys[i - 1] = this._keys[i];
+                                this._values[i - 1] = this._values[i];
+                            }
+                            this._keys.length--;
+                            this._values.length--;
+                            if (key === this._cacheKey) {
+                                this._cacheKey = cacheSentinel;
+                                this._cacheIndex = -2;
+                            }
+                            return true;
+                        }
+                        return false;
+                    };
+                    Map.prototype.clear = function () {
+                        this._keys.length = 0;
+                        this._values.length = 0;
+                        this._cacheKey = cacheSentinel;
+                        this._cacheIndex = -2;
+                    };
+                    Map.prototype.keys = function () {
+                        return new MapIterator(this._keys, this._values, getKey);
+                    };
+                    Map.prototype.values = function () {
+                        return new MapIterator(this._keys, this._values, getValue);
+                    };
+                    Map.prototype.entries = function () {
+                        return new MapIterator(this._keys, this._values, getEntry);
+                    };
+                    Map.prototype["@@iterator"] = function () {
+                        return this.entries();
+                    };
+                    Map.prototype[iteratorSymbol] = function () {
+                        return this.entries();
+                    };
+                    Map.prototype._find = function (key, insert) {
+                        if (this._cacheKey !== key) {
+                            this._cacheIndex = this._keys.indexOf(this._cacheKey = key);
+                        }
+                        if (this._cacheIndex < 0 && insert) {
+                            this._cacheIndex = this._keys.length;
+                            this._keys.push(key);
+                            this._values.push(undefined);
+                        }
+                        return this._cacheIndex;
+                    };
+                    return Map;
+                }();
+                function getKey(key, _) {
+                    return key;
+                }
+                function getValue(_, value) {
+                    return value;
+                }
+                function getEntry(key, value) {
+                    return [key, value];
+                }
+            }
+            // naive Set shim
+            function CreateSetPolyfill() {
+                return function () {
+                    function Set() {
+                        this._map = new _Map();
+                    }
+                    Object.defineProperty(Set.prototype, "size", {
+                        get: function () {
+                            return this._map.size;
+                        },
+                        enumerable: true,
+                        configurable: true
+                    });
+                    Set.prototype.has = function (value) {
+                        return this._map.has(value);
+                    };
+                    Set.prototype.add = function (value) {
+                        return this._map.set(value, value), this;
+                    };
+                    Set.prototype.delete = function (value) {
+                        return this._map.delete(value);
+                    };
+                    Set.prototype.clear = function () {
+                        this._map.clear();
+                    };
+                    Set.prototype.keys = function () {
+                        return this._map.keys();
+                    };
+                    Set.prototype.values = function () {
+                        return this._map.values();
+                    };
+                    Set.prototype.entries = function () {
+                        return this._map.entries();
+                    };
+                    Set.prototype["@@iterator"] = function () {
+                        return this.keys();
+                    };
+                    Set.prototype[iteratorSymbol] = function () {
+                        return this.keys();
+                    };
+                    return Set;
+                }();
+            }
+            // naive WeakMap shim
+            function CreateWeakMapPolyfill() {
+                var UUID_SIZE = 16;
+                var keys = HashMap.create();
+                var rootKey = CreateUniqueKey();
+                return function () {
+                    function WeakMap() {
+                        this._key = CreateUniqueKey();
+                    }
+                    WeakMap.prototype.has = function (target) {
+                        var table = GetOrCreateWeakMapTable(target, /*create*/false);
+                        return table !== undefined ? HashMap.has(table, this._key) : false;
+                    };
+                    WeakMap.prototype.get = function (target) {
+                        var table = GetOrCreateWeakMapTable(target, /*create*/false);
+                        return table !== undefined ? HashMap.get(table, this._key) : undefined;
+                    };
+                    WeakMap.prototype.set = function (target, value) {
+                        var table = GetOrCreateWeakMapTable(target, /*create*/true);
+                        table[this._key] = value;
+                        return this;
+                    };
+                    WeakMap.prototype.delete = function (target) {
+                        var table = GetOrCreateWeakMapTable(target, /*create*/false);
+                        return table !== undefined ? delete table[this._key] : false;
+                    };
+                    WeakMap.prototype.clear = function () {
+                        // NOTE: not a real clear, just makes the previous data unreachable
+                        this._key = CreateUniqueKey();
+                    };
+                    return WeakMap;
+                }();
+                function CreateUniqueKey() {
+                    var key;
+                    do key = "@@WeakMap@@" + CreateUUID(); while (HashMap.has(keys, key));
+                    keys[key] = true;
+                    return key;
+                }
+                function GetOrCreateWeakMapTable(target, create) {
+                    if (!hasOwn.call(target, rootKey)) {
+                        if (!create) return undefined;
+                        Object.defineProperty(target, rootKey, { value: HashMap.create() });
+                    }
+                    return target[rootKey];
+                }
+                function FillRandomBytes(buffer, size) {
+                    for (var i = 0; i < size; ++i) buffer[i] = Math.random() * 0xff | 0;
+                    return buffer;
+                }
+                function GenRandomBytes(size) {
+                    if (typeof Uint8Array === "function") {
+                        if (typeof crypto !== "undefined") return crypto.getRandomValues(new Uint8Array(size));
+                        if (typeof msCrypto !== "undefined") return msCrypto.getRandomValues(new Uint8Array(size));
+                        return FillRandomBytes(new Uint8Array(size), size);
+                    }
+                    return FillRandomBytes(new Array(size), size);
+                }
+                function CreateUUID() {
+                    var data = GenRandomBytes(UUID_SIZE);
+                    // mark as random - RFC 4122 § 4.4
+                    data[6] = data[6] & 0x4f | 0x40;
+                    data[8] = data[8] & 0xbf | 0x80;
+                    var result = "";
+                    for (var offset = 0; offset < UUID_SIZE; ++offset) {
+                        var byte = data[offset];
+                        if (offset === 4 || offset === 6 || offset === 8) result += "-";
+                        if (byte < 16) result += "0";
+                        result += byte.toString(16).toLowerCase();
+                    }
+                    return result;
+                }
+            }
+            // uses a heuristic used by v8 and chakra to force an object into dictionary mode.
+            function MakeDictionary(obj) {
+                obj.__ = undefined;
+                delete obj.__;
+                return obj;
+            }
+            // patch global Reflect
+            (function (__global) {
+                if (typeof __global.Reflect !== "undefined") {
+                    if (__global.Reflect !== Reflect) {
+                        for (var p in Reflect) {
+                            if (hasOwn.call(Reflect, p)) {
+                                __global.Reflect[p] = Reflect[p];
+                            }
+                        }
+                    }
+                } else {
+                    __global.Reflect = Reflect;
+                }
+            })(typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : Function("return this;")());
+        })(Reflect || (Reflect = {}));
+        
+
+        $__global["Reflect"] = Reflect;
+    })(this);
+
+    return _retrieveGlobal();
+});
+(function() {
+var define = System.amdDefine;
+!function(t, e) {
+  "object" == typeof exports && "object" == typeof module ? module.exports = e() : "function" == typeof define && define.amd ? define("node_modules/single-spa/lib/single-spa.js", [], e) && define("singleSpa", ["node_modules/single-spa/lib/single-spa.js"], function(m) {
+    return m;
+  }) : "object" == typeof exports ? exports.singleSpa = e() : t.singleSpa = e();
+}(this, function() {
+  return function(t) {
+    function e(r) {
+      if (n[r])
+        return n[r].exports;
+      var o = n[r] = {
+        i: r,
+        l: !1,
+        exports: {}
+      };
+      return t[r].call(o.exports, o, o.exports, e), o.l = !0, o.exports;
+    }
+    var n = {};
+    return e.m = t, e.c = n, e.i = function(t) {
+      return t;
+    }, e.d = function(t, n, r) {
+      e.o(t, n) || Object.defineProperty(t, n, {
+        configurable: !1,
+        enumerable: !0,
+        get: r
+      });
+    }, e.n = function(t) {
+      var n = t && t.__esModule ? function() {
+        return t.default;
+      } : function() {
+        return t;
+      };
+      return e.d(n, "a", n), n;
+    }, e.o = function(t, e) {
+      return Object.prototype.hasOwnProperty.call(t, e);
+    }, e.p = "", e(e.s = 111);
+  }([function(t, e, n) {
+    var r = n(36)("wks"),
+        o = n(26),
+        i = n(1).Symbol,
+        u = "function" == typeof i;
+    (t.exports = function(t) {
+      return r[t] || (r[t] = u && i[t] || (u ? i : o)("Symbol." + t));
+    }).store = r;
+  }, function(t, e) {
+    var n = t.exports = "undefined" != typeof window && window.Math == Math ? window : "undefined" != typeof self && self.Math == Math ? self : Function("return this")();
+    "number" == typeof __g && (__g = n);
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t.status === m;
+    }
+    function o(t) {
+      return !r(t);
+    }
+    function i(t) {
+      return t.status !== d && t.status !== h;
+    }
+    function u(t) {
+      return !i(t);
+    }
+    function a(t) {
+      try {
+        return t.activeWhen(window.location);
+      } catch (e) {
+        (0, p.handleChildAppError)(e, t), t.status = y;
+      }
+    }
+    function c(t) {
+      try {
+        return !t.activeWhen(window.location);
+      } catch (e) {
+        (0, p.handleChildAppError)(e, t), t.status = y;
+      }
+    }
+    function s(t) {
+      return t.status !== v;
+    }
+    function f(t) {
+      return t !== y && (!t || t.status !== y);
+    }
+    function l(t) {
+      return t.name;
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.SKIP_BECAUSE_BROKEN = e.UNLOADING = e.UNMOUNTING = e.MOUNTED = e.MOUNTING = e.NOT_MOUNTED = e.BOOTSTRAPPING = e.NOT_BOOTSTRAPPED = e.LOADING_SOURCE_CODE = e.NOT_LOADED = void 0, e.isActive = r, e.isntActive = o, e.isLoaded = i, e.isntLoaded = u, e.shouldBeActive = a, e.shouldntBeActive = c, e.notBootstrapped = s, e.notSkipped = f, e.toName = l;
+    var p = n(10),
+        d = e.NOT_LOADED = "NOT_LOADED",
+        h = e.LOADING_SOURCE_CODE = "LOADING_SOURCE_CODE",
+        v = e.NOT_BOOTSTRAPPED = "NOT_BOOTSTRAPPED",
+        m = (e.BOOTSTRAPPING = "BOOTSTRAPPING", e.NOT_MOUNTED = "NOT_MOUNTED", e.MOUNTING = "MOUNTING", e.MOUNTED = "MOUNTED"),
+        y = (e.UNMOUNTING = "UNMOUNTING", e.UNLOADING = "UNLOADING", e.SKIP_BECAUSE_BROKEN = "SKIP_BECAUSE_BROKEN");
+  }, function(t, e) {
+    var n = t.exports = {version: "2.4.0"};
+    "number" == typeof __e && (__e = n);
+  }, function(t, e, n) {
+    var r = n(16);
+    t.exports = function(t) {
+      if (!r(t))
+        throw TypeError(t + " is not an object!");
+      return t;
+    };
+  }, function(t, e, n) {
+    t.exports = !n(15)(function() {
+      return 7 != Object.defineProperty({}, "a", {get: function() {
+          return 7;
+        }}).a;
+    });
+  }, function(t, e) {
+    var n = {}.hasOwnProperty;
+    t.exports = function(t, e) {
+      return n.call(t, e);
+    };
+  }, function(t, e, n) {
+    var r = n(8),
+        o = n(24);
+    t.exports = n(5) ? function(t, e, n) {
+      return r.f(t, e, o(1, n));
+    } : function(t, e, n) {
+      return t[e] = n, t;
+    };
+  }, function(t, e, n) {
+    var r = n(4),
+        o = n(50),
+        i = n(38),
+        u = Object.defineProperty;
+    e.f = n(5) ? Object.defineProperty : function(t, e, n) {
+      if (r(t), e = i(e, !0), r(n), o)
+        try {
+          return u(t, e, n);
+        } catch (t) {}
+      if ("get" in n || "set" in n)
+        throw TypeError("Accessors not supported!");
+      return "value" in n && (t[e] = n.value), t;
+    };
+  }, function(t, e, n) {
+    var r = n(51),
+        o = n(31);
+    t.exports = function(t) {
+      return r(o(t));
+    };
+  }, function(t, e, n) {
+    "use strict";
+    function r(t, e) {
+      var n = o(t, e);
+      window.dispatchEvent(new u.default("single-spa:application-broken", {detail: {
+          appName: e.name,
+          err: n
+        }})), window.SINGLE_SPA_TESTING ? console.error(n) : setTimeout(function() {
+        throw n;
+      });
+    }
+    function o(t, e) {
+      var n = "'" + e.name + "' died in status " + e.status + ": ",
+          r = void 0;
+      if (t instanceof Error) {
+        try {
+          t.message = n + t.message;
+        } catch (t) {}
+        r = t;
+      } else {
+        console.warn("While " + e.status + ", '" + e.name + "' rejected its lifecycle function promise with a non-Error. This will cause stack traces to not be accurate.");
+        try {
+          r = new Error(n + JSON.stringify(t));
+        } catch (e) {
+          r = t;
+        }
+      }
+      return r;
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.handleChildAppError = r;
+    var i = n(41),
+        u = function(t) {
+          return t && t.__esModule ? t : {default: t};
+        }(i);
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
+      if ("number" != typeof t || t <= 0)
+        throw new Error("bootstrap max time must be a positive integer number of milliseconds");
+      l.bootstrap = {
+        millis: t,
+        dieOnTimeout: e
+      };
+    }
+    function o(t) {
+      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
+      if ("number" != typeof t || t <= 0)
+        throw new Error("mount max time must be a positive integer number of milliseconds");
+      l.mount = {
+        millis: t,
+        dieOnTimeout: e
+      };
+    }
+    function i(t) {
+      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
+      if ("number" != typeof t || t <= 0)
+        throw new Error("unmount max time must be a positive integer number of milliseconds");
+      l.unmount = {
+        millis: t,
+        dieOnTimeout: e
+      };
+    }
+    function u(t) {
+      var e = arguments.length > 1 && void 0 !== arguments[1] && arguments[1];
+      if ("number" != typeof t || t <= 0)
+        throw new Error("unload max time must be a positive integer number of milliseconds");
+      l.unload = {
+        millis: t,
+        dieOnTimeout: e
+      };
+    }
+    function a(t, e, n, r) {
+      var o = 1e3;
+      return new Promise(function(r, i) {
+        function u(t) {
+          if (!a)
+            if (!0 === t)
+              c = !0, n.dieOnTimeout ? i(e + " did not resolve or reject for " + n.millis + " milliseconds") : console.error(e + " did not resolve or reject for " + n.millis + " milliseconds -- we're no longer going to warn you about it.");
+            else if (!c) {
+              var r = t,
+                  s = r * o;
+              console.warn(e + " did not resolve or reject within " + s + " milliseconds"), s + o < n.millis && setTimeout(function() {
+                return u(r + 1);
+              }, o);
+            }
+        }
+        var a = !1,
+            c = !1;
+        t.then(function(t) {
+          a = !0, r(t);
+        }).catch(function(t) {
+          a = !0, i(t);
+        }), setTimeout(function() {
+          return u(1);
+        }, o), setTimeout(function() {
+          return u(!0);
+        }, n.millis);
+      });
+    }
+    function c() {
+      var t = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : {};
+      return (0, f.default)({}, l, t);
+    }
+    Object.defineProperty(e, "__esModule", {value: !0});
+    var s = n(71),
+        f = function(t) {
+          return t && t.__esModule ? t : {default: t};
+        }(s);
+    e.setBootstrapMaxTime = r, e.setMountMaxTime = o, e.setUnmountMaxTime = i, e.setUnloadMaxTime = u, e.reasonableTime = a, e.ensureValidAppTimeouts = c;
+    var l = {
+      bootstrap: {
+        millis: 4e3,
+        dieOnTimeout: !1
+      },
+      mount: {
+        millis: 3e3,
+        dieOnTimeout: !1
+      },
+      unmount: {
+        millis: 3e3,
+        dieOnTimeout: !1
+      },
+      unload: {
+        millis: 3e3,
+        dieOnTimeout: !1
+      }
+    };
+  }, function(t, e, n) {
+    "use strict";
+    e.__esModule = !0;
+    var r = n(68),
+        o = function(t) {
+          return t && t.__esModule ? t : {default: t};
+        }(r);
+    e.default = function(t) {
+      return function() {
+        var e = t.apply(this, arguments);
+        return new o.default(function(t, n) {
+          function r(i, u) {
+            try {
+              var a = e[i](u),
+                  c = a.value;
+            } catch (t) {
+              return void n(t);
+            }
+            if (!a.done)
+              return o.default.resolve(c).then(function(t) {
+                r("next", t);
+              }, function(t) {
+                r("throw", t);
+              });
+            t(c);
+          }
+          return r("next");
+        });
+      };
+    };
+  }, function(t, e, n) {
+    t.exports = n(109);
+  }, function(t, e) {
+    var n = {}.toString;
+    t.exports = function(t) {
+      return n.call(t).slice(8, -1);
+    };
+  }, function(t, e) {
+    t.exports = function(t) {
+      try {
+        return !!t();
+      } catch (t) {
+        return !0;
+      }
+    };
+  }, function(t, e) {
+    t.exports = function(t) {
+      return "object" == typeof t ? null !== t : "function" == typeof t;
+    };
+  }, function(t, e) {
+    t.exports = {};
+  }, function(t, e, n) {
+    var r = n(55),
+        o = n(33);
+    t.exports = Object.keys || function(t) {
+      return r(t, o);
+    };
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t && t.__esModule ? t : {default: t};
+    }
+    function o() {
+      function t() {
+        var t = !(arguments.length > 0 && void 0 !== arguments[0]) || arguments[0],
+            r = (0, m.getMountedApps)();
+        t && e(), n.forEach(function(t) {
+          return t.resolve(r);
+        });
+        try {
+          var i = s ? "single-spa:no-app-change" : "single-spa:app-change";
+          window.dispatchEvent(new f.default(i)), window.dispatchEvent(new f.default("single-spa:routing-event"));
+        } catch (t) {
+          setTimeout(function() {
+            throw t;
+          });
+        }
+        if (b = !1, w.length > 0) {
+          var u = w;
+          w = [], o(u);
+        }
+        return r;
+      }
+      function e() {
+        n.forEach(function(t) {
+          (0, y.callCapturedEventListeners)(t.eventArguments);
+        }), (0, y.callCapturedEventListeners)(a);
+      }
+      var n = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : [],
+          r = function() {
+            var n = (0, c.default)(u.default.mark(function n() {
+              var r;
+              return u.default.wrap(function(n) {
+                for (; ; )
+                  switch (n.prev = n.next) {
+                    case 0:
+                      return r = (0, m.getAppsToLoad)().map(p.toLoadPromise), r.length > 0 && (s = !1), n.prev = 2, n.next = 5, Promise.all(r);
+                    case 5:
+                      n.next = 11;
+                      break;
+                    case 7:
+                      throw n.prev = 7, n.t0 = n.catch(2), e(), n.t0;
+                    case 11:
+                      return n.abrupt("return", t());
+                    case 12:
+                    case "end":
+                      return n.stop();
+                  }
+              }, n, this, [[2, 7]]);
+            }));
+            return function() {
+              return n.apply(this, arguments);
+            };
+          }(),
+          i = function() {
+            var r = (0, c.default)(u.default.mark(function r() {
+              var o,
+                  i,
+                  a,
+                  f,
+                  l,
+                  y,
+                  b;
+              return u.default.wrap(function(r) {
+                for (; ; )
+                  switch (r.prev = r.next) {
+                    case 0:
+                      return o = (0, g.getAppsToUnload)().map(g.toUnloadPromise), i = (0, m.getAppsToUnmount)().map(v.toUnmountPromise).map(function(t) {
+                        return t.then(g.toUnloadPromise);
+                      }), a = i.concat(o), a.length > 0 && (s = !1), f = Promise.all(a), l = (0, m.getAppsToLoad)(), y = l.map(function(t) {
+                        return (0, p.toLoadPromise)(t).then(d.toBootstrapPromise).then(function() {
+                          var t = (0, c.default)(u.default.mark(function t(e) {
+                            return u.default.wrap(function(t) {
+                              for (; ; )
+                                switch (t.prev = t.next) {
+                                  case 0:
+                                    return t.next = 2, f;
+                                  case 2:
+                                    return t.abrupt("return", (0, h.toMountPromise)(e));
+                                  case 3:
+                                  case "end":
+                                    return t.stop();
+                                }
+                            }, t, this);
+                          }));
+                          return function(e) {
+                            return t.apply(this, arguments);
+                          };
+                        }());
+                      }), y.length > 0 && (s = !1), b = (0, m.getAppsToMount)().filter(function(t) {
+                        return l.indexOf(t) < 0;
+                      }).map(function() {
+                        var t = (0, c.default)(u.default.mark(function t(e) {
+                          return u.default.wrap(function(t) {
+                            for (; ; )
+                              switch (t.prev = t.next) {
+                                case 0:
+                                  return t.next = 2, (0, d.toBootstrapPromise)(e);
+                                case 2:
+                                  return t.next = 4, f;
+                                case 4:
+                                  return t.abrupt("return", (0, h.toMountPromise)(e));
+                                case 5:
+                                case "end":
+                                  return t.stop();
+                              }
+                          }, t, this);
+                        }));
+                        return function(e) {
+                          return t.apply(this, arguments);
+                        };
+                      }()), b.length > 0 && (s = !1), r.prev = 10, r.next = 13, f;
+                    case 13:
+                      r.next = 19;
+                      break;
+                    case 15:
+                      throw r.prev = 15, r.t0 = r.catch(10), e(), r.t0;
+                    case 19:
+                      return e(), r.prev = 20, r.next = 23, Promise.all(y.concat(b));
+                    case 23:
+                      r.next = 29;
+                      break;
+                    case 25:
+                      throw r.prev = 25, r.t1 = r.catch(20), n.forEach(function(t) {
+                        return t.reject(r.t1);
+                      }), r.t1;
+                    case 29:
+                      return r.abrupt("return", t(!1));
+                    case 30:
+                    case "end":
+                      return r.stop();
+                  }
+              }, r, this, [[10, 15], [20, 25]]);
+            }));
+            return function() {
+              return r.apply(this, arguments);
+            };
+          }(),
+          a = arguments[1];
+      if (b)
+        return new Promise(function(t, e) {
+          w.push({
+            resolve: t,
+            reject: e,
+            eventArguments: a
+          });
+        });
+      b = !0;
+      var s = !0;
+      return (0, l.isStarted)() ? i() : r();
+    }
+    Object.defineProperty(e, "__esModule", {value: !0});
+    var i = n(13),
+        u = r(i),
+        a = n(12),
+        c = r(a);
+    e.reroute = o;
+    var s = n(41),
+        f = r(s),
+        l = n(47),
+        p = n(65),
+        d = n(64),
+        h = n(66),
+        v = n(45),
+        m = n(43),
+        y = (n(2), n(28)),
+        g = n(44),
+        b = !1,
+        w = [];
+  }, function(t, e, n) {
+    var r = n(30);
+    t.exports = function(t, e, n) {
+      if (r(t), void 0 === e)
+        return t;
+      switch (n) {
+        case 1:
+          return function(n) {
+            return t.call(e, n);
+          };
+        case 2:
+          return function(n, r) {
+            return t.call(e, n, r);
+          };
+        case 3:
+          return function(n, r, o) {
+            return t.call(e, n, r, o);
+          };
+      }
+      return function() {
+        return t.apply(e, arguments);
+      };
+    };
+  }, function(t, e, n) {
+    var r = n(1),
+        o = n(3),
+        i = n(20),
+        u = n(7),
+        a = function(t, e, n) {
+          var c,
+              s,
+              f,
+              l = t & a.F,
+              p = t & a.G,
+              d = t & a.S,
+              h = t & a.P,
+              v = t & a.B,
+              m = t & a.W,
+              y = p ? o : o[e] || (o[e] = {}),
+              g = y.prototype,
+              b = p ? r : d ? r[e] : (r[e] || {}).prototype;
+          p && (n = e);
+          for (c in n)
+            (s = !l && b && void 0 !== b[c]) && c in y || (f = s ? b[c] : n[c], y[c] = p && "function" != typeof b[c] ? n[c] : v && s ? i(f, r) : m && b[c] == f ? function(t) {
+              var e = function(e, n, r) {
+                if (this instanceof t) {
+                  switch (arguments.length) {
+                    case 0:
+                      return new t;
+                    case 1:
+                      return new t(e);
+                    case 2:
+                      return new t(e, n);
+                  }
+                  return new t(e, n, r);
+                }
+                return t.apply(this, arguments);
+              };
+              return e.prototype = t.prototype, e;
+            }(f) : h && "function" == typeof f ? i(Function.call, f) : f, h && ((y.virtual || (y.virtual = {}))[c] = f, t & a.R && g && !g[c] && u(g, c, f)));
+        };
+    a.F = 1, a.G = 2, a.S = 4, a.P = 8, a.B = 16, a.W = 32, a.U = 64, a.R = 128, t.exports = a;
+  }, function(t, e) {
+    t.exports = !0;
+  }, function(t, e) {
+    e.f = {}.propertyIsEnumerable;
+  }, function(t, e) {
+    t.exports = function(t, e) {
+      return {
+        enumerable: !(1 & t),
+        configurable: !(2 & t),
+        writable: !(4 & t),
+        value: e
+      };
+    };
+  }, function(t, e, n) {
+    var r = n(8).f,
+        o = n(6),
+        i = n(0)("toStringTag");
+    t.exports = function(t, e, n) {
+      t && !o(t = n ? t : t.prototype, i) && r(t, i, {
+        configurable: !0,
+        value: e
+      });
+    };
+  }, function(t, e) {
+    var n = 0,
+        r = Math.random();
+    t.exports = function(t) {
+      return "Symbol(".concat(void 0 === t ? "" : t, ")_", (++n + r).toString(36));
+    };
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      if (!t || "function" != typeof t.import)
+        throw new Error("'loader' is not a real loader. Must have an import function that returns a Promise");
+      e.Loader = o = t, console.error("Warning: singleSpa.setLoader is deprecated. Please declare apps with a loading function instead. See https://github.com/CanopyTax/single-spa/blob/master/docs/root-application.md#loading-function");
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.setLoader = r;
+    var o = e.Loader = null;
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      var e = void 0;
+      if ("string" == typeof t)
+        e = t;
+      else if (this && this.href)
+        e = this.href;
+      else {
+        if (!(t && t.currentTarget && t.currentTarget.href && t.preventDefault))
+          throw new Error("singleSpaNavigate must be either called with a string url, with an <a> tag as its context, or with an event whose currentTarget is an <a> tag");
+        e = t.currentTarget.href, t.preventDefault();
+      }
+      var n = u(window.location.href),
+          r = u(e);
+      0 === e.indexOf("#") ? window.location.hash = "#" + r.anchor : !function(t, e) {
+        return e === t || e === "/" + t;
+      }(r.path, n.path) || n.host !== r.host && r.host ? window.history.pushState(null, null, e) : window.location.hash = "#" + r.anchor;
+    }
+    function o(t) {
+      var e = this;
+      if (t) {
+        var n = t[0].type;
+        f.indexOf(n) >= 0 && s[n].forEach(function(n) {
+          n.apply(e, t);
+        });
+      }
+    }
+    function i() {
+      (0, a.reroute)([], arguments);
+    }
+    function u(t) {
+      for (var e = {
+        strictMode: !0,
+        key: ["source", "protocol", "authority", "userInfo", "user", "password", "host", "port", "relative", "path", "directory", "file", "query", "anchor"],
+        q: {
+          name: "queryKey",
+          parser: /(?:^|&)([^&=]*)=?([^&]*)/g
+        },
+        parser: {
+          strict: /^(?:([^:\/?#]+):)?(?:\/\/((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?))?((((?:[^?#\/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/,
+          loose: /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/
+        }
+      },
+          n = e,
+          r = n.parser[n.strictMode ? "strict" : "loose"].exec(t),
+          o = {},
+          i = 14; i--; )
+        o[n.key[i]] = r[i] || "";
+      return o[n.q.name] = {}, o[n.key[12]].replace(n.q.parser, function(t, e, r) {
+        e && (o[n.q.name][e] = r);
+      }), o;
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.routingEventsListeningTo = void 0, e.navigateToUrl = r, e.callCapturedEventListeners = o;
+    var a = n(19),
+        c = n(29),
+        s = {
+          hashchange: [],
+          popstate: []
+        },
+        f = e.routingEventsListeningTo = ["hashchange", "popstate"];
+    window.addEventListener("hashchange", i), window.addEventListener("popstate", i);
+    var l = window.addEventListener,
+        p = window.removeEventListener;
+    window.addEventListener = function(t, e) {
+      return "function" == typeof e && f.indexOf(t) >= 0 && !(0, c.find)(s[t], function(t) {
+        return t === e;
+      }) ? void s[t].push(e) : l.apply(this, arguments);
+    }, window.removeEventListener = function(t, e) {
+      return "function" == typeof e && f.indexOf(t) >= 0 ? void(s[t] = s[t].filter(function(t) {
+        return t !== e;
+      })) : p.apply(this, arguments);
+    };
+    var d = window.history.pushState;
+    window.history.pushState = function(t) {
+      var e = d.apply(this, arguments);
+      return (0, a.reroute)(), e;
+    };
+    var h = window.history.replaceState;
+    window.history.replaceState = function() {
+      var t = h.apply(this, arguments);
+      return (0, a.reroute)(), t;
+    }, window.singleSpaNavigate = r;
+  }, function(t, e, n) {
+    "use strict";
+    function r(t, e) {
+      for (var n = 0; n < t.length; n++)
+        if (e(t[n]))
+          return t[n];
+      return null;
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.find = r;
+  }, function(t, e) {
+    t.exports = function(t) {
+      if ("function" != typeof t)
+        throw TypeError(t + " is not a function!");
+      return t;
+    };
+  }, function(t, e) {
+    t.exports = function(t) {
+      if (void 0 == t)
+        throw TypeError("Can't call method on  " + t);
+      return t;
+    };
+  }, function(t, e, n) {
+    var r = n(16),
+        o = n(1).document,
+        i = r(o) && r(o.createElement);
+    t.exports = function(t) {
+      return i ? o.createElement(t) : {};
+    };
+  }, function(t, e) {
+    t.exports = "constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf".split(",");
+  }, function(t, e) {
+    e.f = Object.getOwnPropertySymbols;
+  }, function(t, e, n) {
+    var r = n(36)("keys"),
+        o = n(26);
+    t.exports = function(t) {
+      return r[t] || (r[t] = o(t));
+    };
+  }, function(t, e, n) {
+    var r = n(1),
+        o = r["__core-js_shared__"] || (r["__core-js_shared__"] = {});
+    t.exports = function(t) {
+      return o[t] || (o[t] = {});
+    };
+  }, function(t, e) {
+    var n = Math.ceil,
+        r = Math.floor;
+    t.exports = function(t) {
+      return isNaN(t = +t) ? 0 : (t > 0 ? r : n)(t);
+    };
+  }, function(t, e, n) {
+    var r = n(16);
+    t.exports = function(t, e) {
+      if (!r(t))
+        return t;
+      var n,
+          o;
+      if (e && "function" == typeof(n = t.toString) && !r(o = n.call(t)))
+        return o;
+      if ("function" == typeof(n = t.valueOf) && !r(o = n.call(t)))
+        return o;
+      if (!e && "function" == typeof(n = t.toString) && !r(o = n.call(t)))
+        return o;
+      throw TypeError("Can't convert object to primitive value");
+    };
+  }, function(t, e, n) {
+    var r = n(1),
+        o = n(3),
+        i = n(22),
+        u = n(40),
+        a = n(8).f;
+    t.exports = function(t) {
+      var e = o.Symbol || (o.Symbol = i ? {} : r.Symbol || {});
+      "_" == t.charAt(0) || t in e || a(e, t, {value: u.f(t)});
+    };
+  }, function(t, e, n) {
+    e.f = n(0);
+  }, function(t, e, n) {
+    (function(e) {
+      var n = e.CustomEvent;
+      t.exports = function() {
+        try {
+          var t = new n("cat", {detail: {foo: "bar"}});
+          return "cat" === t.type && "bar" === t.detail.foo;
+        } catch (t) {}
+        return !1;
+      }() ? n : "undefined" != typeof document && "function" == typeof document.createEvent ? function(t, e) {
+        var n = document.createEvent("CustomEvent");
+        return e ? n.initCustomEvent(t, e.bubbles, e.cancelable, e.detail) : n.initCustomEvent(t, !1, !1, void 0), n;
+      } : function(t, e) {
+        var n = document.createEventObject();
+        return n.type = t, e ? (n.bubbles = Boolean(e.bubbles), n.cancelable = Boolean(e.cancelable), n.detail = e.detail) : (n.bubbles = !1, n.cancelable = !1, n.detail = void 0), n;
+      };
+    }).call(e, n(42));
+  }, function(t, e) {
+    var n;
+    n = function() {
+      return this;
+    }();
+    try {
+      n = n || Function("return this")() || (0, eval)("this");
+    } catch (t) {
+      "object" == typeof window && (n = window);
+    }
+    t.exports = n;
+  }, function(t, e, n) {
+    "use strict";
+    function r() {
+      return g.filter(d.isActive).map(d.toName);
+    }
+    function o(t) {
+      var e = (0, v.find)(g, function(e) {
+        return e.name === t;
+      });
+      return e ? e.status : null;
+    }
+    function i(t, e, n) {
+      if ("string" != typeof t || 0 === t.length)
+        throw new Error("The first argument must be a non-empty string 'appName'");
+      if (g[t])
+        throw new Error("There is already an app declared with name " + t);
+      var r = void 0,
+          o = void 0;
+      if (n)
+        r = e, o = n;
+      else {
+        if (!l.Loader)
+          throw new Error("You cannot declare a single-spa child application without either providing a way to load the application or a Loader. See https://github.com/CanopyTax/single-spa/blob/master/docs/single-spa-api.md#declarechildapplication");
+        r = function() {
+          return l.Loader.import(t);
+        }, o = e;
+      }
+      if ("function" != typeof o)
+        throw new Error("The activeWhen argument must be a function");
+      g.push({
+        name: t,
+        loadImpl: r,
+        activeWhen: o,
+        status: d.NOT_LOADED
+      }), (0, p.ensureJQuerySupport)(), (0, h.reroute)();
+    }
+    function u() {
+      return g.filter(d.shouldBeActive).filter(d.notSkipped).filter(d.isntLoaded);
+    }
+    function a() {
+      return g.filter(d.shouldntBeActive).filter(d.notSkipped).filter(d.isActive);
+    }
+    function c() {
+      return g.filter(d.shouldBeActive).filter(d.notSkipped).filter(d.isntActive).filter(d.isLoaded);
+    }
+    function s(t) {
+      var e = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : {waitForUnmount: !1};
+      if ("string" != typeof t)
+        throw new Error("unloadChildApplication requires a string 'appName'");
+      var n = (0, v.find)(g, function(e) {
+        return e.name === t;
+      });
+      if (!n)
+        throw new Error("Could not unload child application '" + t + "' because no such application has been declared");
+      var r = (0, y.getAppUnloadInfo)(n.name);
+      if (e && e.waitForUnmount) {
+        if (r)
+          return r.promise;
+        var o = new Promise(function(t, e) {
+          (0, y.addAppToUnload)(n, function() {
+            return o;
+          }, t, e);
+        });
+        return o;
+      }
+      var i = void 0;
+      return r ? (i = r.promise, f(n, r.resolve, r.reject)) : i = new Promise(function(t, e) {
+        (0, y.addAppToUnload)(n, function() {
+          return i;
+        }, t, e), f(n, t, e);
+      }), i;
+    }
+    function f(t, e, n) {
+      (0, m.toUnmountPromise)(t).then(y.toUnloadPromise).then(function() {
+        e(), setTimeout(function() {
+          (0, h.reroute)();
+        });
+      }).catch(n);
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.getMountedApps = r, e.getAppStatus = o, e.declareChildApplication = i, e.getAppsToLoad = u, e.getAppsToUnmount = a, e.getAppsToMount = c, e.unloadChildApplication = s;
+    var l = n(27),
+        p = n(46),
+        d = n(2),
+        h = n(19),
+        v = n(29),
+        m = n(45),
+        y = n(44),
+        g = [];
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t && t.__esModule ? t : {default: t};
+    }
+    function o(t, e) {
+      delete m[t.name], delete t.bootstrap, delete t.mount, delete t.unmount, delete t.unload, t.status = d.NOT_LOADED, e.resolve();
+    }
+    function i(t, e, n) {
+      delete m[t.name], delete t.bootstrap, delete t.mount, delete t.unmount, delete t.unload, (0, h.handleChildAppError)(n, t), t.status = d.SKIP_BECAUSE_BROKEN, e.reject(n);
+    }
+    function u(t, e, n, r) {
+      m[t.name] = {
+        app: t,
+        resolve: n,
+        reject: r
+      }, Object.defineProperty(m[t.name], "promise", {get: e});
+    }
+    function a(t) {
+      return m[t];
+    }
+    function c() {
+      return Object.keys(m).map(function(t) {
+        return m[t].app;
+      }).filter(d.isntActive);
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.toUnloadPromise = void 0;
+    var s = n(13),
+        f = r(s),
+        l = n(12),
+        p = r(l);
+    e.toUnloadPromise = function() {
+      var t = (0, p.default)(f.default.mark(function t(e) {
+        var n;
+        return f.default.wrap(function(t) {
+          for (; ; )
+            switch (t.prev = t.next) {
+              case 0:
+                if (n = m[e.name], e.status !== d.NOT_LOADED) {
+                  t.next = 4;
+                  break;
+                }
+                return o(e, n), t.abrupt("return", e);
+              case 4:
+                if (e.status !== d.UNLOADING) {
+                  t.next = 8;
+                  break;
+                }
+                return t.next = 7, n.promise;
+              case 7:
+                return t.abrupt("return", e);
+              case 8:
+                if (e.status === d.NOT_MOUNTED) {
+                  t.next = 10;
+                  break;
+                }
+                return t.abrupt("return", e);
+              case 10:
+                if (n) {
+                  t.next = 12;
+                  break;
+                }
+                return t.abrupt("return", e);
+              case 12:
+                return t.prev = 12, e.status = d.UNLOADING, t.next = 16, (0, v.reasonableTime)(e.unload({childAppName: e.name}), "Unloading application '" + e.name + "'", e.timeouts.unload);
+              case 16:
+                t.next = 22;
+                break;
+              case 18:
+                return t.prev = 18, t.t0 = t.catch(12), i(e, n, t.t0), t.abrupt("return", e);
+              case 22:
+                return o(e, n), t.abrupt("return", e);
+              case 24:
+              case "end":
+                return t.stop();
+            }
+        }, t, this, [[12, 18]]);
+      }));
+      return function(e) {
+        return t.apply(this, arguments);
+      };
+    }();
+    e.addAppToUnload = u, e.getAppUnloadInfo = a, e.getAppsToUnload = c;
+    var d = n(2),
+        h = n(10),
+        v = n(11),
+        m = {};
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t && t.__esModule ? t : {default: t};
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.toUnmountPromise = void 0;
+    var o = n(13),
+        i = r(o),
+        u = n(12),
+        a = r(u),
+        c = (e.toUnmountPromise = function() {
+          var t = (0, a.default)(i.default.mark(function t(e) {
+            return i.default.wrap(function(t) {
+              for (; ; )
+                switch (t.prev = t.next) {
+                  case 0:
+                    if (e.status === c.MOUNTED) {
+                      t.next = 2;
+                      break;
+                    }
+                    return t.abrupt("return", e);
+                  case 2:
+                    return e.status = c.UNMOUNTING, t.prev = 3, t.next = 6, (0, f.reasonableTime)(e.unmount({childAppName: e.name}), "Unmounting application " + e.name + "'", e.timeouts.unmount);
+                  case 6:
+                    e.status = c.NOT_MOUNTED, t.next = 13;
+                    break;
+                  case 9:
+                    t.prev = 9, t.t0 = t.catch(3), (0, s.handleChildAppError)(t.t0, e), e.status = c.SKIP_BECAUSE_BROKEN;
+                  case 13:
+                    return t.abrupt("return", e);
+                  case 14:
+                  case "end":
+                    return t.stop();
+                }
+            }, t, this, [[3, 9]]);
+          }));
+          return function(e) {
+            return t.apply(this, arguments);
+          };
+        }(), n(2)),
+        s = n(10),
+        f = n(11);
+  }, function(t, e, n) {
+    "use strict";
+    function r() {
+      var t = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : window.jQuery;
+      if (t || window.$ && window.$.fn && window.$.fn.jquery && (t = window.$), t && !u) {
+        var e = t.fn.on,
+            n = t.fn.off;
+        t.fn.on = function(t, n) {
+          return o.call(this, e, window.addEventListener, t, n, arguments);
+        }, t.fn.off = function(t, e) {
+          return o.call(this, n, window.removeEventListener, t, e, arguments);
+        }, u = !0;
+      }
+    }
+    function o(t, e, n, r, o) {
+      return "string" != typeof n ? t.apply(this, o) : (n.split(/\s+/).forEach(function(t) {
+        i.routingEventsListeningTo.indexOf(t) >= 0 && (e(t, r), n = n.replace(t, ""));
+      }), "" === n.trim() ? this : t.apply(this, o));
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.ensureJQuerySupport = r;
+    var i = n(28),
+        u = !1;
+  }, function(t, e, n) {
+    "use strict";
+    function r() {
+      e.started = u = !0, (0, i.reroute)();
+    }
+    function o() {
+      return u;
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.started = void 0, e.start = r, e.isStarted = o;
+    var i = n(19),
+        u = (n(27), e.started = !1);
+    setTimeout(function() {
+      u || console.warn("singleSpa.start() has not been called, 5000ms after single-spa was loaded. Before start() is called, child apps can be declared and loaded, but not bootstrapped or mounted. See https://github.com/CanopyTax/single-spa/blob/master/docs/single-spa-api.md#start");
+    }, 5e3);
+  }, function(t, e, n) {
+    var r = n(14),
+        o = n(0)("toStringTag"),
+        i = "Arguments" == r(function() {
+          return arguments;
+        }()),
+        u = function(t, e) {
+          try {
+            return t[e];
+          } catch (t) {}
+        };
+    t.exports = function(t) {
+      var e,
+          n,
+          a;
+      return void 0 === t ? "Undefined" : null === t ? "Null" : "string" == typeof(n = u(e = Object(t), o)) ? n : i ? r(e) : "Object" == (a = r(e)) && "function" == typeof e.callee ? "Arguments" : a;
+    };
+  }, function(t, e, n) {
+    t.exports = n(1).document && document.documentElement;
+  }, function(t, e, n) {
+    t.exports = !n(5) && !n(15)(function() {
+      return 7 != Object.defineProperty(n(32)("div"), "a", {get: function() {
+          return 7;
+        }}).a;
+    });
+  }, function(t, e, n) {
+    var r = n(14);
+    t.exports = Object("z").propertyIsEnumerable(0) ? Object : function(t) {
+      return "String" == r(t) ? t.split("") : Object(t);
+    };
+  }, function(t, e, n) {
+    "use strict";
+    var r = n(22),
+        o = n(21),
+        i = n(56),
+        u = n(7),
+        a = n(6),
+        c = n(17),
+        s = n(86),
+        f = n(25),
+        l = n(96),
+        p = n(0)("iterator"),
+        d = !([].keys && "next" in [].keys()),
+        h = function() {
+          return this;
+        };
+    t.exports = function(t, e, n, v, m, y, g) {
+      s(n, e, v);
+      var b,
+          w,
+          O,
+          _ = function(t) {
+            if (!d && t in P)
+              return P[t];
+            switch (t) {
+              case "keys":
+              case "values":
+                return function() {
+                  return new n(this, t);
+                };
+            }
+            return function() {
+              return new n(this, t);
+            };
+          },
+          x = e + " Iterator",
+          E = "values" == m,
+          T = !1,
+          P = t.prototype,
+          N = P[p] || P["@@iterator"] || m && P[m],
+          j = N || _(m),
+          A = m ? E ? _("entries") : j : void 0,
+          S = "Array" == e ? P.entries || N : N;
+      if (S && (O = l(S.call(new t))) !== Object.prototype && (f(O, x, !0), r || a(O, p) || u(O, p, h)), E && N && "values" !== N.name && (T = !0, j = function() {
+        return N.call(this);
+      }), r && !g || !d && !T && P[p] || u(P, p, j), c[e] = j, c[x] = h, m)
+        if (b = {
+          values: E ? j : _("values"),
+          keys: y ? j : _("keys"),
+          entries: A
+        }, g)
+          for (w in b)
+            w in P || i(P, w, b[w]);
+        else
+          o(o.P + o.F * (d || T), e, b);
+      return b;
+    };
+  }, function(t, e, n) {
+    var r = n(4),
+        o = n(93),
+        i = n(33),
+        u = n(35)("IE_PROTO"),
+        a = function() {},
+        c = function() {
+          var t,
+              e = n(32)("iframe"),
+              r = i.length;
+          for (e.style.display = "none", n(49).appendChild(e), e.src = "javascript:", t = e.contentWindow.document, t.open(), t.write("<script>document.F=Object<\/script>"), t.close(), c = t.F; r--; )
+            delete c.prototype[i[r]];
+          return c();
+        };
+    t.exports = Object.create || function(t, e) {
+      var n;
+      return null !== t ? (a.prototype = r(t), n = new a, a.prototype = null, n[u] = t) : n = c(), void 0 === e ? n : o(n, e);
+    };
+  }, function(t, e, n) {
+    var r = n(55),
+        o = n(33).concat("length", "prototype");
+    e.f = Object.getOwnPropertyNames || function(t) {
+      return r(t, o);
+    };
+  }, function(t, e, n) {
+    var r = n(6),
+        o = n(9),
+        i = n(79)(!1),
+        u = n(35)("IE_PROTO");
+    t.exports = function(t, e) {
+      var n,
+          a = o(t),
+          c = 0,
+          s = [];
+      for (n in a)
+        n != u && r(a, n) && s.push(n);
+      for (; e.length > c; )
+        r(a, n = e[c++]) && (~i(s, n) || s.push(n));
+      return s;
+    };
+  }, function(t, e, n) {
+    t.exports = n(7);
+  }, function(t, e, n) {
+    var r,
+        o,
+        i,
+        u = n(20),
+        a = n(82),
+        c = n(49),
+        s = n(32),
+        f = n(1),
+        l = f.process,
+        p = f.setImmediate,
+        d = f.clearImmediate,
+        h = f.MessageChannel,
+        v = 0,
+        m = {},
+        y = function() {
+          var t = +this;
+          if (m.hasOwnProperty(t)) {
+            var e = m[t];
+            delete m[t], e();
+          }
+        },
+        g = function(t) {
+          y.call(t.data);
+        };
+    p && d || (p = function(t) {
+      for (var e = [],
+          n = 1; arguments.length > n; )
+        e.push(arguments[n++]);
+      return m[++v] = function() {
+        a("function" == typeof t ? t : Function(t), e);
+      }, r(v), v;
+    }, d = function(t) {
+      delete m[t];
+    }, "process" == n(14)(l) ? r = function(t) {
+      l.nextTick(u(y, t, 1));
+    } : h ? (o = new h, i = o.port2, o.port1.onmessage = g, r = u(i.postMessage, i, 1)) : f.addEventListener && "function" == typeof postMessage && !f.importScripts ? (r = function(t) {
+      f.postMessage(t + "", "*");
+    }, f.addEventListener("message", g, !1)) : r = "onreadystatechange" in s("script") ? function(t) {
+      c.appendChild(s("script")).onreadystatechange = function() {
+        c.removeChild(this), y.call(t);
+      };
+    } : function(t) {
+      setTimeout(u(y, t, 1), 0);
+    }), t.exports = {
+      set: p,
+      clear: d
+    };
+  }, function(t, e, n) {
+    var r = n(37),
+        o = Math.min;
+    t.exports = function(t) {
+      return t > 0 ? o(r(t), 9007199254740991) : 0;
+    };
+  }, function(t, e, n) {
+    var r = n(31);
+    t.exports = function(t) {
+      return Object(r(t));
+    };
+  }, function(t, e) {}, function(t, e, n) {
+    "use strict";
+    var r = n(100)(!0);
+    n(52)(String, "String", function(t) {
+      this._t = String(t), this._i = 0;
+    }, function() {
+      var t,
+          e = this._t,
+          n = this._i;
+      return n >= e.length ? {
+        value: void 0,
+        done: !0
+      } : (t = r(e, n), this._i += t.length, {
+        value: t,
+        done: !1
+      });
+    });
+  }, function(t, e, n) {
+    n(103);
+    for (var r = n(1),
+        o = n(7),
+        i = n(17),
+        u = n(0)("toStringTag"),
+        a = ["NodeList", "DOMTokenList", "MediaList", "StyleSheetList", "CSSRuleList"],
+        c = 0; c < 5; c++) {
+      var s = a[c],
+          f = r[s],
+          l = f && f.prototype;
+      l && !l[u] && o(l, u, s), i[s] = i.Array;
+    }
+  }, function(t, e, n) {
+    "use strict";
+    Object.defineProperty(e, "__esModule", {value: !0});
+    var r = n(47);
+    Object.defineProperty(e, "start", {
+      enumerable: !0,
+      get: function() {
+        return r.start;
+      }
+    });
+    var o = n(46);
+    Object.defineProperty(e, "ensureJQuerySupport", {
+      enumerable: !0,
+      get: function() {
+        return o.ensureJQuerySupport;
+      }
+    });
+    var i = n(11);
+    Object.defineProperty(e, "setBootstrapMaxTime", {
+      enumerable: !0,
+      get: function() {
+        return i.setBootstrapMaxTime;
+      }
+    }), Object.defineProperty(e, "setMountMaxTime", {
+      enumerable: !0,
+      get: function() {
+        return i.setMountMaxTime;
+      }
+    }), Object.defineProperty(e, "setUnmountMaxTime", {
+      enumerable: !0,
+      get: function() {
+        return i.setUnmountMaxTime;
+      }
+    }), Object.defineProperty(e, "setUnloadMaxTime", {
+      enumerable: !0,
+      get: function() {
+        return i.setUnloadMaxTime;
+      }
+    });
+    var u = n(43);
+    Object.defineProperty(e, "declareChildApplication", {
+      enumerable: !0,
+      get: function() {
+        return u.declareChildApplication;
+      }
+    }), Object.defineProperty(e, "getMountedApps", {
+      enumerable: !0,
+      get: function() {
+        return u.getMountedApps;
+      }
+    }), Object.defineProperty(e, "getAppStatus", {
+      enumerable: !0,
+      get: function() {
+        return u.getAppStatus;
+      }
+    }), Object.defineProperty(e, "unloadChildApplication", {
+      enumerable: !0,
+      get: function() {
+        return u.unloadChildApplication;
+      }
+    });
+    var a = n(28);
+    Object.defineProperty(e, "navigateToUrl", {
+      enumerable: !0,
+      get: function() {
+        return a.navigateToUrl;
+      }
+    });
+    var c = n(19);
+    Object.defineProperty(e, "triggerAppChange", {
+      enumerable: !0,
+      get: function() {
+        return c.reroute;
+      }
+    });
+    var s = n(27);
+    Object.defineProperty(e, "setLoader", {
+      enumerable: !0,
+      get: function() {
+        return s.setLoader;
+      }
+    });
+    var f = n(2);
+    Object.defineProperty(e, "NOT_LOADED", {
+      enumerable: !0,
+      get: function() {
+        return f.NOT_LOADED;
+      }
+    }), Object.defineProperty(e, "LOADING_SOURCE_CODE", {
+      enumerable: !0,
+      get: function() {
+        return f.LOADING_SOURCE_CODE;
+      }
+    }), Object.defineProperty(e, "NOT_BOOTSTRAPPED", {
+      enumerable: !0,
+      get: function() {
+        return f.NOT_BOOTSTRAPPED;
+      }
+    }), Object.defineProperty(e, "BOOTSTRAPPING", {
+      enumerable: !0,
+      get: function() {
+        return f.BOOTSTRAPPING;
+      }
+    }), Object.defineProperty(e, "NOT_MOUNTED", {
+      enumerable: !0,
+      get: function() {
+        return f.NOT_MOUNTED;
+      }
+    }), Object.defineProperty(e, "MOUNTING", {
+      enumerable: !0,
+      get: function() {
+        return f.MOUNTING;
+      }
+    }), Object.defineProperty(e, "MOUNTED", {
+      enumerable: !0,
+      get: function() {
+        return f.MOUNTED;
+      }
+    }), Object.defineProperty(e, "UNMOUNTING", {
+      enumerable: !0,
+      get: function() {
+        return f.UNMOUNTING;
+      }
+    }), Object.defineProperty(e, "SKIP_BECAUSE_BROKEN", {
+      enumerable: !0,
+      get: function() {
+        return f.SKIP_BECAUSE_BROKEN;
+      }
+    });
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t && t.__esModule ? t : {default: t};
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.toBootstrapPromise = void 0;
+    var o = n(13),
+        i = r(o),
+        u = n(12),
+        a = r(u),
+        c = (e.toBootstrapPromise = function() {
+          var t = (0, a.default)(i.default.mark(function t(e) {
+            return i.default.wrap(function(t) {
+              for (; ; )
+                switch (t.prev = t.next) {
+                  case 0:
+                    if (e.status === c.NOT_BOOTSTRAPPED) {
+                      t.next = 2;
+                      break;
+                    }
+                    return t.abrupt("return", e);
+                  case 2:
+                    return e.status = c.BOOTSTRAPPING, t.prev = 3, t.next = 6, (0, s.reasonableTime)(e.bootstrap({childAppName: e.name}), "Bootstrapping app '" + e.name + "'", e.timeouts.bootstrap);
+                  case 6:
+                    e.status = c.NOT_MOUNTED, t.next = 13;
+                    break;
+                  case 9:
+                    t.prev = 9, t.t0 = t.catch(3), e.status = c.SKIP_BECAUSE_BROKEN, (0, f.handleChildAppError)(t.t0, e);
+                  case 13:
+                    return t.abrupt("return", e);
+                  case 14:
+                  case "end":
+                    return t.stop();
+                }
+            }, t, this, [[3, 9]]);
+          }));
+          return function(e) {
+            return t.apply(this, arguments);
+          };
+        }(), n(2)),
+        s = n(11),
+        f = n(10);
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t && t.__esModule ? t : {default: t};
+    }
+    function o(t) {
+      return t && ("function" == typeof t || function(t) {
+        return Array.isArray(t) && !(0, m.find)(t, function(t) {
+          return "function" != typeof t;
+        });
+      }(t));
+    }
+    function i(t, e) {
+      return t = Array.isArray(t) ? t : [t], 0 === t.length && (t = [function() {
+        return Promise.resolve();
+      }]), function(n) {
+        return new Promise(function(r, o) {
+          function i(a) {
+            var c = t[a](n);
+            u(c) ? c.then(function() {
+              a === t.length - 1 ? r() : i(a + 1);
+            }).catch(o) : o(e + " at index " + a + " did not return a promise");
+          }
+          i(0);
+        });
+      };
+    }
+    function u(t) {
+      return t && "function" == typeof t.then && "function" == typeof t.catch;
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.toLoadPromise = void 0;
+    var a = n(13),
+        c = r(a),
+        s = n(72),
+        f = r(s),
+        l = n(12),
+        p = r(l),
+        d = (e.toLoadPromise = function() {
+          var t = (0, p.default)(c.default.mark(function t(e) {
+            var n,
+                r,
+                a;
+            return c.default.wrap(function(t) {
+              for (; ; )
+                switch (t.prev = t.next) {
+                  case 0:
+                    if (e.status === d.NOT_LOADED) {
+                      t.next = 2;
+                      break;
+                    }
+                    return t.abrupt("return", e);
+                  case 2:
+                    if (e.status = d.LOADING_SOURCE_CODE, n = void 0, t.prev = 4, r = e.loadImpl({childAppName: e.name}), u(r)) {
+                      t.next = 8;
+                      break;
+                    }
+                    throw new Error("single-spa loading function did not return a promise. Check the second argument to declareChildApplication('" + e.name + "', loadingFunction, activityFunction)");
+                  case 8:
+                    return t.next = 10, r;
+                  case 10:
+                    n = t.sent, t.next = 18;
+                    break;
+                  case 13:
+                    return t.prev = 13, t.t0 = t.catch(4), (0, v.handleChildAppError)(t.t0, e), e.status = d.SKIP_BECAUSE_BROKEN, t.abrupt("return", e);
+                  case 18:
+                    if (a = void 0, "object" !== (void 0 === n ? "undefined" : (0, f.default)(n)) && (a = "does not export anything"), o(n.bootstrap) || (a = "does not export a bootstrap function or array of functions"), o(n.mount) || (a = "does not export a mount function or array of functions"), o(n.unmount) || (a = "does not export an unmount function or array of functions"), !a) {
+                      t.next = 27;
+                      break;
+                    }
+                    return (0, v.handleChildAppError)(a, e), e.status = d.SKIP_BECAUSE_BROKEN, t.abrupt("return", e);
+                  case 27:
+                    return e.status = d.NOT_BOOTSTRAPPED, e.bootstrap = i(n.bootstrap, "App '" + e.name + "' bootstrap function"), e.mount = i(n.mount, "App '" + e.name + "' mount function"), e.unmount = i(n.unmount, "App '" + e.name + "' unmount function"), e.unload = i(n.unload || [], "App '" + e.name + "' unload function"), e.timeouts = (0, h.ensureValidAppTimeouts)(n.timeouts), t.abrupt("return", e);
+                  case 34:
+                  case "end":
+                    return t.stop();
+                }
+            }, t, this, [[4, 13]]);
+          }));
+          return function(e) {
+            return t.apply(this, arguments);
+          };
+        }(), n(2)),
+        h = n(11),
+        v = n(10),
+        m = n(29);
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t && t.__esModule ? t : {default: t};
+    }
+    Object.defineProperty(e, "__esModule", {value: !0}), e.toMountPromise = void 0;
+    var o = n(13),
+        i = r(o),
+        u = n(12),
+        a = r(u),
+        c = (e.toMountPromise = function() {
+          var t = (0, a.default)(i.default.mark(function t(e) {
+            return i.default.wrap(function(t) {
+              for (; ; )
+                switch (t.prev = t.next) {
+                  case 0:
+                    if (e.status === c.NOT_MOUNTED) {
+                      t.next = 2;
+                      break;
+                    }
+                    return t.abrupt("return", e);
+                  case 2:
+                    return d || (window.dispatchEvent(new p.default("single-spa:before-first-mount")), d = !0), t.prev = 3, t.next = 6, (0, f.reasonableTime)(e.mount({childAppName: e.name}), "Mounting application '" + e.name + "'", e.timeouts.mount);
+                  case 6:
+                    e.status = c.MOUNTED, t.next = 13;
+                    break;
+                  case 9:
+                    t.prev = 9, t.t0 = t.catch(3), (0, s.handleChildAppError)(t.t0, e), e.status = c.SKIP_BECAUSE_BROKEN;
+                  case 13:
+                    return h || (window.dispatchEvent(new p.default("single-spa:first-mount")), h = !0), t.abrupt("return", e);
+                  case 15:
+                  case "end":
+                    return t.stop();
+                }
+            }, t, this, [[3, 9]]);
+          }));
+          return function(e) {
+            return t.apply(this, arguments);
+          };
+        }(), n(2)),
+        s = n(10),
+        f = n(11),
+        l = n(41),
+        p = r(l),
+        d = !1,
+        h = !1;
+  }, function(t, e, n) {
+    t.exports = {
+      default: n(73),
+      __esModule: !0
+    };
+  }, function(t, e, n) {
+    t.exports = {
+      default: n(74),
+      __esModule: !0
+    };
+  }, function(t, e, n) {
+    t.exports = {
+      default: n(75),
+      __esModule: !0
+    };
+  }, function(t, e, n) {
+    t.exports = {
+      default: n(76),
+      __esModule: !0
+    };
+  }, function(t, e, n) {
+    "use strict";
+    e.__esModule = !0;
+    var r = n(67),
+        o = function(t) {
+          return t && t.__esModule ? t : {default: t};
+        }(r);
+    e.default = o.default || function(t) {
+      for (var e = 1; e < arguments.length; e++) {
+        var n = arguments[e];
+        for (var r in n)
+          Object.prototype.hasOwnProperty.call(n, r) && (t[r] = n[r]);
+      }
+      return t;
+    };
+  }, function(t, e, n) {
+    "use strict";
+    function r(t) {
+      return t && t.__esModule ? t : {default: t};
+    }
+    e.__esModule = !0;
+    var o = n(70),
+        i = r(o),
+        u = n(69),
+        a = r(u),
+        c = "function" == typeof a.default && "symbol" == typeof i.default ? function(t) {
+          return typeof t;
+        } : function(t) {
+          return t && "function" == typeof a.default && t.constructor === a.default && t !== a.default.prototype ? "symbol" : typeof t;
+        };
+    e.default = "function" == typeof a.default && "symbol" === c(i.default) ? function(t) {
+      return void 0 === t ? "undefined" : c(t);
+    } : function(t) {
+      return t && "function" == typeof a.default && t.constructor === a.default && t !== a.default.prototype ? "symbol" : void 0 === t ? "undefined" : c(t);
+    };
+  }, function(t, e, n) {
+    n(104), t.exports = n(3).Object.assign;
+  }, function(t, e, n) {
+    n(60), n(61), n(62), n(105), t.exports = n(3).Promise;
+  }, function(t, e, n) {
+    n(106), n(60), n(107), n(108), t.exports = n(3).Symbol;
+  }, function(t, e, n) {
+    n(61), n(62), t.exports = n(40).f("iterator");
+  }, function(t, e) {
+    t.exports = function() {};
+  }, function(t, e) {
+    t.exports = function(t, e, n, r) {
+      if (!(t instanceof e) || void 0 !== r && r in t)
+        throw TypeError(n + ": incorrect invocation!");
+      return t;
+    };
+  }, function(t, e, n) {
+    var r = n(9),
+        o = n(58),
+        i = n(101);
+    t.exports = function(t) {
+      return function(e, n, u) {
+        var a,
+            c = r(e),
+            s = o(c.length),
+            f = i(u, s);
+        if (t && n != n) {
+          for (; s > f; )
+            if ((a = c[f++]) != a)
+              return !0;
+        } else
+          for (; s > f; f++)
+            if ((t || f in c) && c[f] === n)
+              return t || f || 0;
+        return !t && -1;
+      };
+    };
+  }, function(t, e, n) {
+    var r = n(18),
+        o = n(34),
+        i = n(23);
+    t.exports = function(t) {
+      var e = r(t),
+          n = o.f;
+      if (n)
+        for (var u,
+            a = n(t),
+            c = i.f,
+            s = 0; a.length > s; )
+          c.call(t, u = a[s++]) && e.push(u);
+      return e;
+    };
+  }, function(t, e, n) {
+    var r = n(20),
+        o = n(85),
+        i = n(83),
+        u = n(4),
+        a = n(58),
+        c = n(102),
+        s = {},
+        f = {},
+        e = t.exports = function(t, e, n, l, p) {
+          var d,
+              h,
+              v,
+              m,
+              y = p ? function() {
+                return t;
+              } : c(t),
+              g = r(n, l, e ? 2 : 1),
+              b = 0;
+          if ("function" != typeof y)
+            throw TypeError(t + " is not iterable!");
+          if (i(y)) {
+            for (d = a(t.length); d > b; b++)
+              if ((m = e ? g(u(h = t[b])[0], h[1]) : g(t[b])) === s || m === f)
+                return m;
+          } else
+            for (v = y.call(t); !(h = v.next()).done; )
+              if ((m = o(v, g, h.value, e)) === s || m === f)
+                return m;
+        };
+    e.BREAK = s, e.RETURN = f;
+  }, function(t, e) {
+    t.exports = function(t, e, n) {
+      var r = void 0 === n;
+      switch (e.length) {
+        case 0:
+          return r ? t() : t.call(n);
+        case 1:
+          return r ? t(e[0]) : t.call(n, e[0]);
+        case 2:
+          return r ? t(e[0], e[1]) : t.call(n, e[0], e[1]);
+        case 3:
+          return r ? t(e[0], e[1], e[2]) : t.call(n, e[0], e[1], e[2]);
+        case 4:
+          return r ? t(e[0], e[1], e[2], e[3]) : t.call(n, e[0], e[1], e[2], e[3]);
+      }
+      return t.apply(n, e);
+    };
+  }, function(t, e, n) {
+    var r = n(17),
+        o = n(0)("iterator"),
+        i = Array.prototype;
+    t.exports = function(t) {
+      return void 0 !== t && (r.Array === t || i[o] === t);
+    };
+  }, function(t, e, n) {
+    var r = n(14);
+    t.exports = Array.isArray || function(t) {
+      return "Array" == r(t);
+    };
+  }, function(t, e, n) {
+    var r = n(4);
+    t.exports = function(t, e, n, o) {
+      try {
+        return o ? e(r(n)[0], n[1]) : e(n);
+      } catch (e) {
+        var i = t.return;
+        throw void 0 !== i && r(i.call(t)), e;
+      }
+    };
+  }, function(t, e, n) {
+    "use strict";
+    var r = n(53),
+        o = n(24),
+        i = n(25),
+        u = {};
+    n(7)(u, n(0)("iterator"), function() {
+      return this;
+    }), t.exports = function(t, e, n) {
+      t.prototype = r(u, {next: o(1, n)}), i(t, e + " Iterator");
+    };
+  }, function(t, e, n) {
+    var r = n(0)("iterator"),
+        o = !1;
+    try {
+      var i = [7][r]();
+      i.return = function() {
+        o = !0;
+      }, Array.from(i, function() {
+        throw 2;
+      });
+    } catch (t) {}
+    t.exports = function(t, e) {
+      if (!e && !o)
+        return !1;
+      var n = !1;
+      try {
+        var i = [7],
+            u = i[r]();
+        u.next = function() {
+          return {done: n = !0};
+        }, i[r] = function() {
+          return u;
+        }, t(i);
+      } catch (t) {}
+      return n;
+    };
+  }, function(t, e) {
+    t.exports = function(t, e) {
+      return {
+        value: e,
+        done: !!t
+      };
+    };
+  }, function(t, e, n) {
+    var r = n(18),
+        o = n(9);
+    t.exports = function(t, e) {
+      for (var n,
+          i = o(t),
+          u = r(i),
+          a = u.length,
+          c = 0; a > c; )
+        if (i[n = u[c++]] === e)
+          return n;
+    };
+  }, function(t, e, n) {
+    var r = n(26)("meta"),
+        o = n(16),
+        i = n(6),
+        u = n(8).f,
+        a = 0,
+        c = Object.isExtensible || function() {
+          return !0;
+        },
+        s = !n(15)(function() {
+          return c(Object.preventExtensions({}));
+        }),
+        f = function(t) {
+          u(t, r, {value: {
+              i: "O" + ++a,
+              w: {}
+            }});
+        },
+        l = function(t, e) {
+          if (!o(t))
+            return "symbol" == typeof t ? t : ("string" == typeof t ? "S" : "P") + t;
+          if (!i(t, r)) {
+            if (!c(t))
+              return "F";
+            if (!e)
+              return "E";
+            f(t);
+          }
+          return t[r].i;
+        },
+        p = function(t, e) {
+          if (!i(t, r)) {
+            if (!c(t))
+              return !0;
+            if (!e)
+              return !1;
+            f(t);
+          }
+          return t[r].w;
+        },
+        d = function(t) {
+          return s && h.NEED && c(t) && !i(t, r) && f(t), t;
+        },
+        h = t.exports = {
+          KEY: r,
+          NEED: !1,
+          fastKey: l,
+          getWeak: p,
+          onFreeze: d
+        };
+  }, function(t, e, n) {
+    var r = n(1),
+        o = n(57).set,
+        i = r.MutationObserver || r.WebKitMutationObserver,
+        u = r.process,
+        a = r.Promise,
+        c = "process" == n(14)(u);
+    t.exports = function() {
+      var t,
+          e,
+          n,
+          s = function() {
+            var r,
+                o;
+            for (c && (r = u.domain) && r.exit(); t; ) {
+              o = t.fn, t = t.next;
+              try {
+                o();
+              } catch (r) {
+                throw t ? n() : e = void 0, r;
+              }
+            }
+            e = void 0, r && r.enter();
+          };
+      if (c)
+        n = function() {
+          u.nextTick(s);
+        };
+      else if (i) {
+        var f = !0,
+            l = document.createTextNode("");
+        new i(s).observe(l, {characterData: !0}), n = function() {
+          l.data = f = !f;
+        };
+      } else if (a && a.resolve) {
+        var p = a.resolve();
+        n = function() {
+          p.then(s);
+        };
+      } else
+        n = function() {
+          o.call(r, s);
+        };
+      return function(r) {
+        var o = {
+          fn: r,
+          next: void 0
+        };
+        e && (e.next = o), t || (t = o, n()), e = o;
+      };
+    };
+  }, function(t, e, n) {
+    "use strict";
+    var r = n(18),
+        o = n(34),
+        i = n(23),
+        u = n(59),
+        a = n(51),
+        c = Object.assign;
+    t.exports = !c || n(15)(function() {
+      var t = {},
+          e = {},
+          n = Symbol(),
+          r = "abcdefghijklmnopqrst";
+      return t[n] = 7, r.split("").forEach(function(t) {
+        e[t] = t;
+      }), 7 != c({}, t)[n] || Object.keys(c({}, e)).join("") != r;
+    }) ? function(t, e) {
+      for (var n = u(t),
+          c = arguments.length,
+          s = 1,
+          f = o.f,
+          l = i.f; c > s; )
+        for (var p,
+            d = a(arguments[s++]),
+            h = f ? r(d).concat(f(d)) : r(d),
+            v = h.length,
+            m = 0; v > m; )
+          l.call(d, p = h[m++]) && (n[p] = d[p]);
+      return n;
+    } : c;
+  }, function(t, e, n) {
+    var r = n(8),
+        o = n(4),
+        i = n(18);
+    t.exports = n(5) ? Object.defineProperties : function(t, e) {
+      o(t);
+      for (var n,
+          u = i(e),
+          a = u.length,
+          c = 0; a > c; )
+        r.f(t, n = u[c++], e[n]);
+      return t;
+    };
+  }, function(t, e, n) {
+    var r = n(23),
+        o = n(24),
+        i = n(9),
+        u = n(38),
+        a = n(6),
+        c = n(50),
+        s = Object.getOwnPropertyDescriptor;
+    e.f = n(5) ? s : function(t, e) {
+      if (t = i(t), e = u(e, !0), c)
+        try {
+          return s(t, e);
+        } catch (t) {}
+      if (a(t, e))
+        return o(!r.f.call(t, e), t[e]);
+    };
+  }, function(t, e, n) {
+    var r = n(9),
+        o = n(54).f,
+        i = {}.toString,
+        u = "object" == typeof window && window && Object.getOwnPropertyNames ? Object.getOwnPropertyNames(window) : [],
+        a = function(t) {
+          try {
+            return o(t);
+          } catch (t) {
+            return u.slice();
+          }
+        };
+    t.exports.f = function(t) {
+      return u && "[object Window]" == i.call(t) ? a(t) : o(r(t));
+    };
+  }, function(t, e, n) {
+    var r = n(6),
+        o = n(59),
+        i = n(35)("IE_PROTO"),
+        u = Object.prototype;
+    t.exports = Object.getPrototypeOf || function(t) {
+      return t = o(t), r(t, i) ? t[i] : "function" == typeof t.constructor && t instanceof t.constructor ? t.constructor.prototype : t instanceof Object ? u : null;
+    };
+  }, function(t, e, n) {
+    var r = n(7);
+    t.exports = function(t, e, n) {
+      for (var o in e)
+        n && t[o] ? t[o] = e[o] : r(t, o, e[o]);
+      return t;
+    };
+  }, function(t, e, n) {
+    "use strict";
+    var r = n(1),
+        o = n(3),
+        i = n(8),
+        u = n(5),
+        a = n(0)("species");
+    t.exports = function(t) {
+      var e = "function" == typeof o[t] ? o[t] : r[t];
+      u && e && !e[a] && i.f(e, a, {
+        configurable: !0,
+        get: function() {
+          return this;
+        }
+      });
+    };
+  }, function(t, e, n) {
+    var r = n(4),
+        o = n(30),
+        i = n(0)("species");
+    t.exports = function(t, e) {
+      var n,
+          u = r(t).constructor;
+      return void 0 === u || void 0 == (n = r(u)[i]) ? e : o(n);
+    };
+  }, function(t, e, n) {
+    var r = n(37),
+        o = n(31);
+    t.exports = function(t) {
+      return function(e, n) {
+        var i,
+            u,
+            a = String(o(e)),
+            c = r(n),
+            s = a.length;
+        return c < 0 || c >= s ? t ? "" : void 0 : (i = a.charCodeAt(c), i < 55296 || i > 56319 || c + 1 === s || (u = a.charCodeAt(c + 1)) < 56320 || u > 57343 ? t ? a.charAt(c) : i : t ? a.slice(c, c + 2) : u - 56320 + (i - 55296 << 10) + 65536);
+      };
+    };
+  }, function(t, e, n) {
+    var r = n(37),
+        o = Math.max,
+        i = Math.min;
+    t.exports = function(t, e) {
+      return t = r(t), t < 0 ? o(t + e, 0) : i(t, e);
+    };
+  }, function(t, e, n) {
+    var r = n(48),
+        o = n(0)("iterator"),
+        i = n(17);
+    t.exports = n(3).getIteratorMethod = function(t) {
+      if (void 0 != t)
+        return t[o] || t["@@iterator"] || i[r(t)];
+    };
+  }, function(t, e, n) {
+    "use strict";
+    var r = n(77),
+        o = n(88),
+        i = n(17),
+        u = n(9);
+    t.exports = n(52)(Array, "Array", function(t, e) {
+      this._t = u(t), this._i = 0, this._k = e;
+    }, function() {
+      var t = this._t,
+          e = this._k,
+          n = this._i++;
+      return !t || n >= t.length ? (this._t = void 0, o(1)) : "keys" == e ? o(0, n) : "values" == e ? o(0, t[n]) : o(0, [n, t[n]]);
+    }, "values"), i.Arguments = i.Array, r("keys"), r("values"), r("entries");
+  }, function(t, e, n) {
+    var r = n(21);
+    r(r.S + r.F, "Object", {assign: n(92)});
+  }, function(t, e, n) {
+    "use strict";
+    var r,
+        o,
+        i,
+        u = n(22),
+        a = n(1),
+        c = n(20),
+        s = n(48),
+        f = n(21),
+        l = n(16),
+        p = n(30),
+        d = n(78),
+        h = n(81),
+        v = n(99),
+        m = n(57).set,
+        y = n(91)(),
+        g = a.TypeError,
+        b = a.process,
+        w = a.Promise,
+        b = a.process,
+        O = "process" == s(b),
+        _ = function() {},
+        x = !!function() {
+          try {
+            var t = w.resolve(1),
+                e = (t.constructor = {})[n(0)("species")] = function(t) {
+                  t(_, _);
+                };
+            return (O || "function" == typeof PromiseRejectionEvent) && t.then(_) instanceof e;
+          } catch (t) {}
+        }(),
+        E = function(t, e) {
+          return t === e || t === w && e === i;
+        },
+        T = function(t) {
+          var e;
+          return !(!l(t) || "function" != typeof(e = t.then)) && e;
+        },
+        P = function(t) {
+          return E(w, t) ? new N(t) : new o(t);
+        },
+        N = o = function(t) {
+          var e,
+              n;
+          this.promise = new t(function(t, r) {
+            if (void 0 !== e || void 0 !== n)
+              throw g("Bad Promise constructor");
+            e = t, n = r;
+          }), this.resolve = p(e), this.reject = p(n);
+        },
+        j = function(t) {
+          try {
+            t();
+          } catch (t) {
+            return {error: t};
+          }
+        },
+        A = function(t, e) {
+          if (!t._n) {
+            t._n = !0;
+            var n = t._c;
+            y(function() {
+              for (var r = t._v,
+                  o = 1 == t._s,
+                  i = 0; n.length > i; )
+                !function(e) {
+                  var n,
+                      i,
+                      u = o ? e.ok : e.fail,
+                      a = e.resolve,
+                      c = e.reject,
+                      s = e.domain;
+                  try {
+                    u ? (o || (2 == t._h && L(t), t._h = 1), !0 === u ? n = r : (s && s.enter(), n = u(r), s && s.exit()), n === e.promise ? c(g("Promise-chain cycle")) : (i = T(n)) ? i.call(n, a, c) : a(n)) : c(r);
+                  } catch (t) {
+                    c(t);
+                  }
+                }(n[i++]);
+              t._c = [], t._n = !1, e && !t._h && S(t);
+            });
+          }
+        },
+        S = function(t) {
+          m.call(a, function() {
+            var e,
+                n,
+                r,
+                o = t._v;
+            if (M(t) && (e = j(function() {
+              O ? b.emit("unhandledRejection", o, t) : (n = a.onunhandledrejection) ? n({
+                promise: t,
+                reason: o
+              }) : (r = a.console) && r.error && r.error("Unhandled promise rejection", o);
+            }), t._h = O || M(t) ? 2 : 1), t._a = void 0, e)
+              throw e.error;
+          });
+        },
+        M = function(t) {
+          if (1 == t._h)
+            return !1;
+          for (var e,
+              n = t._a || t._c,
+              r = 0; n.length > r; )
+            if (e = n[r++], e.fail || !M(e.promise))
+              return !1;
+          return !0;
+        },
+        L = function(t) {
+          m.call(a, function() {
+            var e;
+            O ? b.emit("rejectionHandled", t) : (e = a.onrejectionhandled) && e({
+              promise: t,
+              reason: t._v
+            });
+          });
+        },
+        U = function(t) {
+          var e = this;
+          e._d || (e._d = !0, e = e._w || e, e._v = t, e._s = 2, e._a || (e._a = e._c.slice()), A(e, !0));
+        },
+        k = function(t) {
+          var e,
+              n = this;
+          if (!n._d) {
+            n._d = !0, n = n._w || n;
+            try {
+              if (n === t)
+                throw g("Promise can't be resolved itself");
+              (e = T(t)) ? y(function() {
+                var r = {
+                  _w: n,
+                  _d: !1
+                };
+                try {
+                  e.call(t, c(k, r, 1), c(U, r, 1));
+                } catch (t) {
+                  U.call(r, t);
+                }
+              }) : (n._v = t, n._s = 1, A(n, !1));
+            } catch (t) {
+              U.call({
+                _w: n,
+                _d: !1
+              }, t);
+            }
+          }
+        };
+    x || (w = function(t) {
+      d(this, w, "Promise", "_h"), p(t), r.call(this);
+      try {
+        t(c(k, this, 1), c(U, this, 1));
+      } catch (t) {
+        U.call(this, t);
+      }
+    }, r = function(t) {
+      this._c = [], this._a = void 0, this._s = 0, this._d = !1, this._v = void 0, this._h = 0, this._n = !1;
+    }, r.prototype = n(97)(w.prototype, {
+      then: function(t, e) {
+        var n = P(v(this, w));
+        return n.ok = "function" != typeof t || t, n.fail = "function" == typeof e && e, n.domain = O ? b.domain : void 0, this._c.push(n), this._a && this._a.push(n), this._s && A(this, !1), n.promise;
+      },
+      catch: function(t) {
+        return this.then(void 0, t);
+      }
+    }), N = function() {
+      var t = new r;
+      this.promise = t, this.resolve = c(k, t, 1), this.reject = c(U, t, 1);
+    }), f(f.G + f.W + f.F * !x, {Promise: w}), n(25)(w, "Promise"), n(98)("Promise"), i = n(3).Promise, f(f.S + f.F * !x, "Promise", {reject: function(t) {
+        var e = P(this);
+        return (0, e.reject)(t), e.promise;
+      }}), f(f.S + f.F * (u || !x), "Promise", {resolve: function(t) {
+        if (t instanceof w && E(t.constructor, this))
+          return t;
+        var e = P(this);
+        return (0, e.resolve)(t), e.promise;
+      }}), f(f.S + f.F * !(x && n(87)(function(t) {
+      w.all(t).catch(_);
+    })), "Promise", {
+      all: function(t) {
+        var e = this,
+            n = P(e),
+            r = n.resolve,
+            o = n.reject,
+            i = j(function() {
+              var n = [],
+                  i = 0,
+                  u = 1;
+              h(t, !1, function(t) {
+                var a = i++,
+                    c = !1;
+                n.push(void 0), u++, e.resolve(t).then(function(t) {
+                  c || (c = !0, n[a] = t, --u || r(n));
+                }, o);
+              }), --u || r(n);
+            });
+        return i && o(i.error), n.promise;
+      },
+      race: function(t) {
+        var e = this,
+            n = P(e),
+            r = n.reject,
+            o = j(function() {
+              h(t, !1, function(t) {
+                e.resolve(t).then(n.resolve, r);
+              });
+            });
+        return o && r(o.error), n.promise;
+      }
+    });
+  }, function(t, e, n) {
+    "use strict";
+    var r = n(1),
+        o = n(6),
+        i = n(5),
+        u = n(21),
+        a = n(56),
+        c = n(90).KEY,
+        s = n(15),
+        f = n(36),
+        l = n(25),
+        p = n(26),
+        d = n(0),
+        h = n(40),
+        v = n(39),
+        m = n(89),
+        y = n(80),
+        g = n(84),
+        b = n(4),
+        w = n(9),
+        O = n(38),
+        _ = n(24),
+        x = n(53),
+        E = n(95),
+        T = n(94),
+        P = n(8),
+        N = n(18),
+        j = T.f,
+        A = P.f,
+        S = E.f,
+        M = r.Symbol,
+        L = r.JSON,
+        U = L && L.stringify,
+        k = d("_hidden"),
+        D = d("toPrimitive"),
+        C = {}.propertyIsEnumerable,
+        I = f("symbol-registry"),
+        B = f("symbols"),
+        R = f("op-symbols"),
+        G = Object.prototype,
+        F = "function" == typeof M,
+        K = r.QObject,
+        W = !K || !K.prototype || !K.prototype.findChild,
+        q = i && s(function() {
+          return 7 != x(A({}, "a", {get: function() {
+              return A(this, "a", {value: 7}).a;
+            }})).a;
+        }) ? function(t, e, n) {
+          var r = j(G, e);
+          r && delete G[e], A(t, e, n), r && t !== G && A(G, e, r);
+        } : A,
+        J = function(t) {
+          var e = B[t] = x(M.prototype);
+          return e._k = t, e;
+        },
+        Q = F && "symbol" == typeof M.iterator ? function(t) {
+          return "symbol" == typeof t;
+        } : function(t) {
+          return t instanceof M;
+        },
+        Y = function(t, e, n) {
+          return t === G && Y(R, e, n), b(t), e = O(e, !0), b(n), o(B, e) ? (n.enumerable ? (o(t, k) && t[k][e] && (t[k][e] = !1), n = x(n, {enumerable: _(0, !1)})) : (o(t, k) || A(t, k, _(1, {})), t[k][e] = !0), q(t, e, n)) : A(t, e, n);
+        },
+        $ = function(t, e) {
+          b(t);
+          for (var n,
+              r = y(e = w(e)),
+              o = 0,
+              i = r.length; i > o; )
+            Y(t, n = r[o++], e[n]);
+          return t;
+        },
+        z = function(t, e) {
+          return void 0 === e ? x(t) : $(x(t), e);
+        },
+        V = function(t) {
+          var e = C.call(this, t = O(t, !0));
+          return !(this === G && o(B, t) && !o(R, t)) && (!(e || !o(this, t) || !o(B, t) || o(this, k) && this[k][t]) || e);
+        },
+        H = function(t, e) {
+          if (t = w(t), e = O(e, !0), t !== G || !o(B, e) || o(R, e)) {
+            var n = j(t, e);
+            return !n || !o(B, e) || o(t, k) && t[k][e] || (n.enumerable = !0), n;
+          }
+        },
+        X = function(t) {
+          for (var e,
+              n = S(w(t)),
+              r = [],
+              i = 0; n.length > i; )
+            o(B, e = n[i++]) || e == k || e == c || r.push(e);
+          return r;
+        },
+        Z = function(t) {
+          for (var e,
+              n = t === G,
+              r = S(n ? R : w(t)),
+              i = [],
+              u = 0; r.length > u; )
+            !o(B, e = r[u++]) || n && !o(G, e) || i.push(B[e]);
+          return i;
+        };
+    F || (M = function() {
+      if (this instanceof M)
+        throw TypeError("Symbol is not a constructor!");
+      var t = p(arguments.length > 0 ? arguments[0] : void 0),
+          e = function(n) {
+            this === G && e.call(R, n), o(this, k) && o(this[k], t) && (this[k][t] = !1), q(this, t, _(1, n));
+          };
+      return i && W && q(G, t, {
+        configurable: !0,
+        set: e
+      }), J(t);
+    }, a(M.prototype, "toString", function() {
+      return this._k;
+    }), T.f = H, P.f = Y, n(54).f = E.f = X, n(23).f = V, n(34).f = Z, i && !n(22) && a(G, "propertyIsEnumerable", V, !0), h.f = function(t) {
+      return J(d(t));
+    }), u(u.G + u.W + u.F * !F, {Symbol: M});
+    for (var tt = "hasInstance,isConcatSpreadable,iterator,match,replace,search,species,split,toPrimitive,toStringTag,unscopables".split(","),
+        et = 0; tt.length > et; )
+      d(tt[et++]);
+    for (var tt = N(d.store),
+        et = 0; tt.length > et; )
+      v(tt[et++]);
+    u(u.S + u.F * !F, "Symbol", {
+      for: function(t) {
+        return o(I, t += "") ? I[t] : I[t] = M(t);
+      },
+      keyFor: function(t) {
+        if (Q(t))
+          return m(I, t);
+        throw TypeError(t + " is not a symbol!");
+      },
+      useSetter: function() {
+        W = !0;
+      },
+      useSimple: function() {
+        W = !1;
+      }
+    }), u(u.S + u.F * !F, "Object", {
+      create: z,
+      defineProperty: Y,
+      defineProperties: $,
+      getOwnPropertyDescriptor: H,
+      getOwnPropertyNames: X,
+      getOwnPropertySymbols: Z
+    }), L && u(u.S + u.F * (!F || s(function() {
+      var t = M();
+      return "[null]" != U([t]) || "{}" != U({a: t}) || "{}" != U(Object(t));
+    })), "JSON", {stringify: function(t) {
+        if (void 0 !== t && !Q(t)) {
+          for (var e,
+              n,
+              r = [t],
+              o = 1; arguments.length > o; )
+            r.push(arguments[o++]);
+          return e = r[1], "function" == typeof e && (n = e), !n && g(e) || (e = function(t, e) {
+            if (n && (e = n.call(this, t, e)), !Q(e))
+              return e;
+          }), r[1] = e, U.apply(L, r);
+        }
+      }}), M.prototype[D] || n(7)(M.prototype, D, M.prototype.valueOf), l(M, "Symbol"), l(Math, "Math", !0), l(r.JSON, "JSON", !0);
+  }, function(t, e, n) {
+    n(39)("asyncIterator");
+  }, function(t, e, n) {
+    n(39)("observable");
+  }, function(t, e, n) {
+    (function(e) {
+      var r = "object" == typeof e ? e : "object" == typeof window ? window : "object" == typeof self ? self : this,
+          o = r.regeneratorRuntime && Object.getOwnPropertyNames(r).indexOf("regeneratorRuntime") >= 0,
+          i = o && r.regeneratorRuntime;
+      if (r.regeneratorRuntime = void 0, t.exports = n(110), o)
+        r.regeneratorRuntime = i;
+      else
+        try {
+          delete r.regeneratorRuntime;
+        } catch (t) {
+          r.regeneratorRuntime = void 0;
+        }
+    }).call(e, n(42));
+  }, function(t, e, n) {
+    (function(e) {
+      !function(e) {
+        "use strict";
+        function n(t, e, n, r) {
+          var i = e && e.prototype instanceof o ? e : o,
+              u = Object.create(i.prototype),
+              a = new d(r || []);
+          return u._invoke = s(t, n, a), u;
+        }
+        function r(t, e, n) {
+          try {
+            return {
+              type: "normal",
+              arg: t.call(e, n)
+            };
+          } catch (t) {
+            return {
+              type: "throw",
+              arg: t
+            };
+          }
+        }
+        function o() {}
+        function i() {}
+        function u() {}
+        function a(t) {
+          ["next", "throw", "return"].forEach(function(e) {
+            t[e] = function(t) {
+              return this._invoke(e, t);
+            };
+          });
+        }
+        function c(t) {
+          function n(e, o, i, u) {
+            var a = r(t[e], t, o);
+            if ("throw" !== a.type) {
+              var c = a.arg,
+                  s = c.value;
+              return s && "object" == typeof s && g.call(s, "__await") ? Promise.resolve(s.__await).then(function(t) {
+                n("next", t, i, u);
+              }, function(t) {
+                n("throw", t, i, u);
+              }) : Promise.resolve(s).then(function(t) {
+                c.value = t, i(c);
+              }, u);
+            }
+            u(a.arg);
+          }
+          function o(t, e) {
+            function r() {
+              return new Promise(function(r, o) {
+                n(t, e, r, o);
+              });
+            }
+            return i = i ? i.then(r, r) : r();
+          }
+          "object" == typeof e.process && e.process.domain && (n = e.process.domain.bind(n));
+          var i;
+          this._invoke = o;
+        }
+        function s(t, e, n) {
+          var o = T;
+          return function(i, u) {
+            if (o === N)
+              throw new Error("Generator is already running");
+            if (o === j) {
+              if ("throw" === i)
+                throw u;
+              return v();
+            }
+            for (n.method = i, n.arg = u; ; ) {
+              var a = n.delegate;
+              if (a) {
+                var c = f(a, n);
+                if (c) {
+                  if (c === A)
+                    continue;
+                  return c;
+                }
+              }
+              if ("next" === n.method)
+                n.sent = n._sent = n.arg;
+              else if ("throw" === n.method) {
+                if (o === T)
+                  throw o = j, n.arg;
+                n.dispatchException(n.arg);
+              } else
+                "return" === n.method && n.abrupt("return", n.arg);
+              o = N;
+              var s = r(t, e, n);
+              if ("normal" === s.type) {
+                if (o = n.done ? j : P, s.arg === A)
+                  continue;
+                return {
+                  value: s.arg,
+                  done: n.done
+                };
+              }
+              "throw" === s.type && (o = j, n.method = "throw", n.arg = s.arg);
+            }
+          };
+        }
+        function f(t, e) {
+          var n = t.iterator[e.method];
+          if (n === m) {
+            if (e.delegate = null, "throw" === e.method) {
+              if (t.iterator.return && (e.method = "return", e.arg = m, f(t, e), "throw" === e.method))
+                return A;
+              e.method = "throw", e.arg = new TypeError("The iterator does not provide a 'throw' method");
+            }
+            return A;
+          }
+          var o = r(n, t.iterator, e.arg);
+          if ("throw" === o.type)
+            return e.method = "throw", e.arg = o.arg, e.delegate = null, A;
+          var i = o.arg;
+          return i ? i.done ? (e[t.resultName] = i.value, e.next = t.nextLoc, "return" !== e.method && (e.method = "next", e.arg = m), e.delegate = null, A) : i : (e.method = "throw", e.arg = new TypeError("iterator result is not an object"), e.delegate = null, A);
+        }
+        function l(t) {
+          var e = {tryLoc: t[0]};
+          1 in t && (e.catchLoc = t[1]), 2 in t && (e.finallyLoc = t[2], e.afterLoc = t[3]), this.tryEntries.push(e);
+        }
+        function p(t) {
+          var e = t.completion || {};
+          e.type = "normal", delete e.arg, t.completion = e;
+        }
+        function d(t) {
+          this.tryEntries = [{tryLoc: "root"}], t.forEach(l, this), this.reset(!0);
+        }
+        function h(t) {
+          if (t) {
+            var e = t[w];
+            if (e)
+              return e.call(t);
+            if ("function" == typeof t.next)
+              return t;
+            if (!isNaN(t.length)) {
+              var n = -1,
+                  r = function e() {
+                    for (; ++n < t.length; )
+                      if (g.call(t, n))
+                        return e.value = t[n], e.done = !1, e;
+                    return e.value = m, e.done = !0, e;
+                  };
+              return r.next = r;
+            }
+          }
+          return {next: v};
+        }
+        function v() {
+          return {
+            value: m,
+            done: !0
+          };
+        }
+        var m,
+            y = Object.prototype,
+            g = y.hasOwnProperty,
+            b = "function" == typeof Symbol ? Symbol : {},
+            w = b.iterator || "@@iterator",
+            O = b.asyncIterator || "@@asyncIterator",
+            _ = b.toStringTag || "@@toStringTag",
+            x = "object" == typeof t,
+            E = e.regeneratorRuntime;
+        if (E)
+          return void(x && (t.exports = E));
+        E = e.regeneratorRuntime = x ? t.exports : {}, E.wrap = n;
+        var T = "suspendedStart",
+            P = "suspendedYield",
+            N = "executing",
+            j = "completed",
+            A = {},
+            S = {};
+        S[w] = function() {
+          return this;
+        };
+        var M = Object.getPrototypeOf,
+            L = M && M(M(h([])));
+        L && L !== y && g.call(L, w) && (S = L);
+        var U = u.prototype = o.prototype = Object.create(S);
+        i.prototype = U.constructor = u, u.constructor = i, u[_] = i.displayName = "GeneratorFunction", E.isGeneratorFunction = function(t) {
+          var e = "function" == typeof t && t.constructor;
+          return !!e && (e === i || "GeneratorFunction" === (e.displayName || e.name));
+        }, E.mark = function(t) {
+          return Object.setPrototypeOf ? Object.setPrototypeOf(t, u) : (t.__proto__ = u, _ in t || (t[_] = "GeneratorFunction")), t.prototype = Object.create(U), t;
+        }, E.awrap = function(t) {
+          return {__await: t};
+        }, a(c.prototype), c.prototype[O] = function() {
+          return this;
+        }, E.AsyncIterator = c, E.async = function(t, e, r, o) {
+          var i = new c(n(t, e, r, o));
+          return E.isGeneratorFunction(e) ? i : i.next().then(function(t) {
+            return t.done ? t.value : i.next();
+          });
+        }, a(U), U[_] = "Generator", U[w] = function() {
+          return this;
+        }, U.toString = function() {
+          return "[object Generator]";
+        }, E.keys = function(t) {
+          var e = [];
+          for (var n in t)
+            e.push(n);
+          return e.reverse(), function n() {
+            for (; e.length; ) {
+              var r = e.pop();
+              if (r in t)
+                return n.value = r, n.done = !1, n;
+            }
+            return n.done = !0, n;
+          };
+        }, E.values = h, d.prototype = {
+          constructor: d,
+          reset: function(t) {
+            if (this.prev = 0, this.next = 0, this.sent = this._sent = m, this.done = !1, this.delegate = null, this.method = "next", this.arg = m, this.tryEntries.forEach(p), !t)
+              for (var e in this)
+                "t" === e.charAt(0) && g.call(this, e) && !isNaN(+e.slice(1)) && (this[e] = m);
+          },
+          stop: function() {
+            this.done = !0;
+            var t = this.tryEntries[0],
+                e = t.completion;
+            if ("throw" === e.type)
+              throw e.arg;
+            return this.rval;
+          },
+          dispatchException: function(t) {
+            function e(e, r) {
+              return i.type = "throw", i.arg = t, n.next = e, r && (n.method = "next", n.arg = m), !!r;
+            }
+            if (this.done)
+              throw t;
+            for (var n = this,
+                r = this.tryEntries.length - 1; r >= 0; --r) {
+              var o = this.tryEntries[r],
+                  i = o.completion;
+              if ("root" === o.tryLoc)
+                return e("end");
+              if (o.tryLoc <= this.prev) {
+                var u = g.call(o, "catchLoc"),
+                    a = g.call(o, "finallyLoc");
+                if (u && a) {
+                  if (this.prev < o.catchLoc)
+                    return e(o.catchLoc, !0);
+                  if (this.prev < o.finallyLoc)
+                    return e(o.finallyLoc);
+                } else if (u) {
+                  if (this.prev < o.catchLoc)
+                    return e(o.catchLoc, !0);
+                } else {
+                  if (!a)
+                    throw new Error("try statement without catch or finally");
+                  if (this.prev < o.finallyLoc)
+                    return e(o.finallyLoc);
+                }
+              }
+            }
+          },
+          abrupt: function(t, e) {
+            for (var n = this.tryEntries.length - 1; n >= 0; --n) {
+              var r = this.tryEntries[n];
+              if (r.tryLoc <= this.prev && g.call(r, "finallyLoc") && this.prev < r.finallyLoc) {
+                var o = r;
+                break;
+              }
+            }
+            o && ("break" === t || "continue" === t) && o.tryLoc <= e && e <= o.finallyLoc && (o = null);
+            var i = o ? o.completion : {};
+            return i.type = t, i.arg = e, o ? (this.method = "next", this.next = o.finallyLoc, A) : this.complete(i);
+          },
+          complete: function(t, e) {
+            if ("throw" === t.type)
+              throw t.arg;
+            return "break" === t.type || "continue" === t.type ? this.next = t.arg : "return" === t.type ? (this.rval = this.arg = t.arg, this.method = "return", this.next = "end") : "normal" === t.type && e && (this.next = e), A;
+          },
+          finish: function(t) {
+            for (var e = this.tryEntries.length - 1; e >= 0; --e) {
+              var n = this.tryEntries[e];
+              if (n.finallyLoc === t)
+                return this.complete(n.completion, n.afterLoc), p(n), A;
+            }
+          },
+          catch: function(t) {
+            for (var e = this.tryEntries.length - 1; e >= 0; --e) {
+              var n = this.tryEntries[e];
+              if (n.tryLoc === t) {
+                var r = n.completion;
+                if ("throw" === r.type) {
+                  var o = r.arg;
+                  p(n);
+                }
+                return o;
+              }
+            }
+            throw new Error("illegal catch attempt");
+          },
+          delegateYield: function(t, e, n) {
+            return this.delegate = {
+              iterator: h(t),
+              resultName: e,
+              nextLoc: n
+            }, "next" === this.method && (this.arg = m), A;
+          }
+        };
+      }("object" == typeof e ? e : "object" == typeof window ? window : "object" == typeof self ? self : this);
+    }).call(e, n(42));
+  }, function(t, e, n) {
+    t.exports = n(63);
+  }]);
+});
+
+})();
+System.register("node_modules/systemjs-plugin-babel/babel-helpers/defineProperty.js", [], function (_export, _context) {
+  "use strict";
+
+  return {
+    setters: [],
+    execute: function () {
+      _export("default", function (obj, key, value) {
+        if (key in obj) {
+          Object.defineProperty(obj, key, {
+            value: value,
+            enumerable: true,
+            configurable: true,
+            writable: true
+          });
+        } else {
+          obj[key] = value;
+        }
+
+        return obj;
+      });
+    }
+  };
+});
+(function() {
+var define = System.amdDefine;
 !function(t, e) {
   "object" == typeof exports && "undefined" != typeof module ? e(exports) : "function" == typeof define && define.amd ? define("node_modules/redux/dist/redux.min.js", ["exports"], e) : e(t.Redux = t.Redux || {});
 }(this, function(t) {
@@ -39408,25 +39431,50 @@ var define = System.amdDefine;
 });
 
 })();
-System.register('state.js', ['node_modules/redux/dist/redux.min.js'], function (_export, _context) {
+System.register('state.js', ['node_modules/systemjs-plugin-babel/babel-helpers/defineProperty.js', 'node_modules/redux/dist/redux.min.js'], function (_export, _context) {
     "use strict";
 
-    var Redux, changeUser, onActiveUserChange;
+    var _defineProperty, Redux, initialShellState, shellReducer, changeUser, onActiveUserChange;
+
     return {
-        setters: [function (_node_modulesReduxDistReduxMinJs) {
+        setters: [function (_node_modulesSystemjsPluginBabelBabelHelpersDefinePropertyJs) {
+            _defineProperty = _node_modulesSystemjsPluginBabelBabelHelpersDefinePropertyJs.default;
+        }, function (_node_modulesReduxDistReduxMinJs) {
             Redux = _node_modulesReduxDistReduxMinJs.default;
         }],
         execute: function () {
+            initialShellState = {
+                currentUser: '',
+                childMessages: {}
+            };
+
+            shellReducer = function shellReducer() {
+                var state = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : initialShellState;
+                var action = arguments[1];
+
+                switch (action.type) {
+                    case 'CHANGE_USER':
+                        return Object.assign({}, state, { currentUser: action.payload });
+
+                    case 'SEND_MESSAGE':
+                        {
+
+                            var newMessages = Object.assign({}, state.childMessages, _defineProperty({}, action.payload.appName, action.payload.message));
+                            return Object.assign({}, state, { childMessages: newMessages });
+                        }
+
+                    default:
+                        return state;
+                }
+            };
 
             window.shell = {
-                store: Redux.createStore(function (state, action) {
-                    return action.payload;
-                })
+                store: Redux.createStore(shellReducer)
             };
 
             changeUser = function changeUser() {
                 var user = document.getElementById('currentUser').value;
-                window.shell.store.dispatch({ type: 'ChangeUser', payload: user });
+                window.shell.store.dispatch({ type: 'CHANGE_USER', payload: user });
             };
 
             changeUser();
@@ -39436,23 +39484,27 @@ System.register('state.js', ['node_modules/redux/dist/redux.min.js'], function (
             };
 
             document.getElementById('currentUser').addEventListener('keyup', onActiveUserChange);
+
+            // update messages from child apps
+            window.shell.store.subscribe(function () {
+                var messages = window.shell.store.getState().childMessages;
+                document.getElementById('messages').innerHTML = JSON.stringify(messages, null, 4);
+            });
+
+            window.shell.sendMessage = function (appName, message) {
+                window.shell.store.dispatch({ type: 'SEND_MESSAGE', payload: { appName: appName, message: message } });
+            };
         }
     };
 });
-System.register('shell.js', ['node_modules/zone.js/dist/zone.js', 'node_modules/reflect-metadata/Reflect.js', 'node_modules/single-spa/lib/single-spa.js', 'node_modules/@angular/core/bundles/core.umd.js', 'node_modules/@angular/platform-browser/bundles/platform-browser.umd.js', 'node_modules/@angular/platform-browser-dynamic/bundles/platform-browser-dynamic.umd.js', 'state.js'], function (_export, _context) {
+System.register('shell.js', ['node_modules/@angular/core/bundles/core.umd.js', 'node_modules/@angular/platform-browser/bundles/platform-browser.umd.js', 'node_modules/@angular/platform-browser-dynamic/bundles/platform-browser-dynamic.umd.js', 'node_modules/zone.js/dist/zone.js', 'node_modules/reflect-metadata/Reflect.js', 'node_modules/single-spa/lib/single-spa.js', 'state.js'], function (_export, _context) {
   "use strict";
 
-  var declareChildApplication, start, angular, platform, platformDynamic, loadApp, isAppActive, getAppsFromServer;
+  var declareChildApplication, start, loadApp, isAppActive, getAppsFromServer;
   return {
-    setters: [function (_node_modulesZoneJsDistZoneJs) {}, function (_node_modulesReflectMetadataReflectJs) {}, function (_node_modulesSingleSpaLibSingleSpaJs) {
+    setters: [function (_node_modulesAngularCoreBundlesCoreUmdJs) {}, function (_node_modulesAngularPlatformBrowserBundlesPlatformBrowserUmdJs) {}, function (_node_modulesAngularPlatformBrowserDynamicBundlesPlatformBrowserDynamicUmdJs) {}, function (_node_modulesZoneJsDistZoneJs) {}, function (_node_modulesReflectMetadataReflectJs) {}, function (_node_modulesSingleSpaLibSingleSpaJs) {
       declareChildApplication = _node_modulesSingleSpaLibSingleSpaJs.declareChildApplication;
       start = _node_modulesSingleSpaLibSingleSpaJs.start;
-    }, function (_node_modulesAngularCoreBundlesCoreUmdJs) {
-      angular = _node_modulesAngularCoreBundlesCoreUmdJs.default;
-    }, function (_node_modulesAngularPlatformBrowserBundlesPlatformBrowserUmdJs) {
-      platform = _node_modulesAngularPlatformBrowserBundlesPlatformBrowserUmdJs.default;
-    }, function (_node_modulesAngularPlatformBrowserDynamicBundlesPlatformBrowserDynamicUmdJs) {
-      platformDynamic = _node_modulesAngularPlatformBrowserDynamicBundlesPlatformBrowserDynamicUmdJs.default;
     }, function (_stateJs) {}],
     execute: function () {
       loadApp = function loadApp(name) {
@@ -39483,12 +39535,26 @@ System.register('shell.js', ['node_modules/zone.js/dist/zone.js', 'node_modules/
         });
       });
 
+      start();
+
+      //
+      //   const apps = [
+      //     {name: 'pvwa', url: './childApps/pvwa/bundle.js'},
+      //     {name: 'pta', url: './childApps/pta/bundle.js'},
+      //     {name: 'msp', url: './childApps/msp/bundle.js'},
+      //     {name: 'vanilla', url: './childApps/vanilla/bundle.js'}
+      //   ]
+
+      // const getAppsFromServer = () => 
+      //   new Promise((resolve, reject) => {
+      //     setTimeout(() => resolve(apps), 1)
+      //   }) 
+
+
       // declareChildApplication("pvwa", loadApp('pvwa'), isAppActive('pvwa'));
       // declareChildApplication("pta", loadApp('pta'), isAppActive('pta'));
       // declareChildApplication("msp", loadApp('msp'), isAppActive('msp'));
       // declareChildApplication("vanilla", loadApp('vanilla'), isAppActive('vanilla')) ;
-
-      start();
     }
   };
 });

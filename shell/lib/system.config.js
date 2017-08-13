@@ -15,6 +15,10 @@ System.config({
       "shell.js",
       "state.js",
       "node_modules/redux/dist/redux.min.js",
+      "node_modules/systemjs-plugin-babel/babel-helpers/defineProperty.js",
+      "node_modules/single-spa/lib/single-spa.js",
+      "node_modules/reflect-metadata/Reflect.js",
+      "node_modules/zone.js/dist/zone.js",
       "node_modules/@angular/platform-browser-dynamic/bundles/platform-browser-dynamic.umd.js",
       "node_modules/@angular/platform-browser/bundles/platform-browser.umd.js",
       "node_modules/@angular/core/bundles/core.umd.js",
@@ -52,10 +56,7 @@ System.config({
       "node_modules/rxjs/observable/EmptyObservable.js",
       "node_modules/rxjs/observable/ScalarObservable.js",
       "node_modules/@angular/common/bundles/common.umd.js",
-      "node_modules/@angular/compiler/bundles/compiler.umd.js",
-      "node_modules/single-spa/lib/single-spa.js",
-      "node_modules/reflect-metadata/Reflect.js",
-      "node_modules/zone.js/dist/zone.js"
+      "node_modules/@angular/compiler/bundles/compiler.umd.js"
     ]
   },
 
