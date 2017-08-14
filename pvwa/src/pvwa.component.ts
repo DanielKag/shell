@@ -1,16 +1,14 @@
-declare var window;
-
 import { Observable, Subject } from 'rxjs/Rx';
-//let Component = window.angular.core.Component;
 import {select, NgRedux} from '@angular-redux/store'
 import {Component, Input, ChangeDetectorRef, ElementRef, ViewChild, OnDestroy} from '@angular/core';
+import { ShellUtils } from 'shell-utils';
 import {IPVWAState} from './main-module';
 
 @Component({
 	selector: 'pvwa-app',
 	template: `		
 				<h1>
-					PVWA Works!					
+					PVWA Works!
 				</h1>				
 
 				<div style="background: grey; width:400px; padding: 20px">
@@ -25,10 +23,7 @@ import {IPVWAState} from './main-module';
 					<strong>Send message to the shell:</strong>					
 					<br>
 					<input #inputMessage (keyup)="sendMessage()" type="text">
-				</div>	
-
-				
-	
+				</div>					
 	`
 })
 export class PVWAApp implements OnDestroy {
@@ -38,12 +33,11 @@ export class PVWAApp implements OnDestroy {
 	public currentUser: string;
 	public unsubscribe;
 	
-
-	constructor(private store: NgRedux<IPVWAState>, private cdr:ChangeDetectorRef) {
+	constructor(private shell: ShellUtils, private store: NgRedux<IPVWAState>, private cdr:ChangeDetectorRef) {
 		
-		this.currentUser = window.shell.store.getState().currentUser;
-		this.unsubscribe = window.shell.store.subscribe(() => {			
-			this.currentUser = window.shell.store.getState().currentUser;
+		this.currentUser = shell.getStore().getState().currentUser;
+		this.unsubscribe = shell.getStore().subscribe(() => {			
+			this.currentUser = shell.getStore().getState().currentUser;
 			this.cdr.detectChanges();			
 		});
 
@@ -59,7 +53,7 @@ export class PVWAApp implements OnDestroy {
 
 	sendMessage() {		
 		const message= this.input.nativeElement.value;
-		window.shell.sendMessage('PVWA', message);
+		this.shell.sendMessage('PVWA', message);
 	}
 
     ngOnDestroy(){		

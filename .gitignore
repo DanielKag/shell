@@ -15,6 +15,7 @@
 # shell's dependencies
 /shell/node_modules
 /shell/jspm_packages
+/shell-utils/node_modules
 
 # IDEs and editors
 /.idea

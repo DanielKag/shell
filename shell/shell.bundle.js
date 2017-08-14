@@ -39500,7 +39500,7 @@ System.register('state.js', ['node_modules/systemjs-plugin-babel/babel-helpers/d
 System.register('shell.js', ['node_modules/@angular/core/bundles/core.umd.js', 'node_modules/@angular/platform-browser/bundles/platform-browser.umd.js', 'node_modules/@angular/platform-browser-dynamic/bundles/platform-browser-dynamic.umd.js', 'node_modules/zone.js/dist/zone.js', 'node_modules/reflect-metadata/Reflect.js', 'node_modules/single-spa/lib/single-spa.js', 'state.js'], function (_export, _context) {
   "use strict";
 
-  var declareChildApplication, start, loadApp, isAppActive, getAppsFromServer;
+  var declareChildApplication, start, loadApp, isAppActive;
   return {
     setters: [function (_node_modulesAngularCoreBundlesCoreUmdJs) {}, function (_node_modulesAngularPlatformBrowserBundlesPlatformBrowserUmdJs) {}, function (_node_modulesAngularPlatformBrowserDynamicBundlesPlatformBrowserDynamicUmdJs) {}, function (_node_modulesZoneJsDistZoneJs) {}, function (_node_modulesReflectMetadataReflectJs) {}, function (_node_modulesSingleSpaLibSingleSpaJs) {
       declareChildApplication = _node_modulesSingleSpaLibSingleSpaJs.declareChildApplication;
@@ -39519,23 +39519,27 @@ System.register('shell.js', ['node_modules/@angular/core/bundles/core.umd.js', '
         };
       };
 
-      getAppsFromServer = function getAppsFromServer() {
-        return fetch('https://api.myjson.com/bins/st4md').then(function (response) {
+      SystemJS.import('web.config.js').then(function (data) {
+        var applications_request = data.config.applications_request;
+
+        if (!applications_request) {
+          throw new Error("Invalid config file");
+        }
+
+        fetch(applications_request).then(function (response) {
           return response.json();
         }).then(function (json) {
           return json.apps;
+        }).then(function (apps) {
+          apps.forEach(function (app) {
+            declareChildApplication(app.name, function () {
+              return SystemJS.import(app.url);
+            }, isAppActive(app.name));
+          });
         });
-      };
 
-      getAppsFromServer().then(function (apps) {
-        apps.forEach(function (app) {
-          declareChildApplication(app.name, function () {
-            return SystemJS.import(app.url);
-          }, isAppActive(app.name));
-        });
-      });
-
-      start();
+        start();
+      }
 
       //
       //   const apps = [
@@ -39555,6 +39559,7 @@ System.register('shell.js', ['node_modules/@angular/core/bundles/core.umd.js', '
       // declareChildApplication("pta", loadApp('pta'), isAppActive('pta'));
       // declareChildApplication("msp", loadApp('msp'), isAppActive('msp'));
       // declareChildApplication("vanilla", loadApp('vanilla'), isAppActive('vanilla')) ;
+      );
     }
   };
 });

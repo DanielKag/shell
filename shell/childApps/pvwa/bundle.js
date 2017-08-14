@@ -1,4 +1,4 @@
-define(["@angular/core","rxjs/add/operator/distinctUntilChanged","rxjs/add/operator/let","rxjs/add/operator/map","@angular/platform-browser-dynamic","single-spa-angular2","@angular/platform-browser","rxjs/Observable","rxjs/BehaviorSubject","rxjs/add/operator/filter","rxjs/add/operator/switchMap"], function(__WEBPACK_EXTERNAL_MODULE_0__, __WEBPACK_EXTERNAL_MODULE_5__, __WEBPACK_EXTERNAL_MODULE_8__, __WEBPACK_EXTERNAL_MODULE_16__, __WEBPACK_EXTERNAL_MODULE_19__, __WEBPACK_EXTERNAL_MODULE_20__, __WEBPACK_EXTERNAL_MODULE_22__, __WEBPACK_EXTERNAL_MODULE_46__, __WEBPACK_EXTERNAL_MODULE_47__, __WEBPACK_EXTERNAL_MODULE_48__, __WEBPACK_EXTERNAL_MODULE_49__) { return /******/ (function(modules) { // webpackBootstrap
+define(["@angular/core","rxjs/add/operator/distinctUntilChanged","rxjs/add/operator/let","rxjs/add/operator/map","@angular/platform-browser-dynamic","single-spa-angular2","@angular/platform-browser","rxjs/Observable","rxjs/BehaviorSubject","rxjs/add/operator/filter","rxjs/add/operator/switchMap"], function(__WEBPACK_EXTERNAL_MODULE_0__, __WEBPACK_EXTERNAL_MODULE_5__, __WEBPACK_EXTERNAL_MODULE_8__, __WEBPACK_EXTERNAL_MODULE_16__, __WEBPACK_EXTERNAL_MODULE_20__, __WEBPACK_EXTERNAL_MODULE_21__, __WEBPACK_EXTERNAL_MODULE_23__, __WEBPACK_EXTERNAL_MODULE_47__, __WEBPACK_EXTERNAL_MODULE_48__, __WEBPACK_EXTERNAL_MODULE_49__, __WEBPACK_EXTERNAL_MODULE_50__) { return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
 /******/
@@ -60,7 +60,7 @@ define(["@angular/core","rxjs/add/operator/distinctUntilChanged","rxjs/add/opera
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 18);
+/******/ 	return __webpack_require__(__webpack_require__.s = 19);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -98,7 +98,7 @@ exports.NgRedux = NgRedux;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var set_in_1 = __webpack_require__(24);
+var set_in_1 = __webpack_require__(25);
 var get_in_1 = __webpack_require__(3);
 var reducerMap = {};
 var composeReducers = function () {
@@ -314,14 +314,14 @@ var dev_tools_1 = __webpack_require__(7);
 exports.DevToolsExtension = dev_tools_1.DevToolsExtension;
 var fractal_reducer_map_1 = __webpack_require__(2);
 exports.enableFractalReducers = fractal_reducer_map_1.enableFractalReducers;
-var select_1 = __webpack_require__(25);
+var select_1 = __webpack_require__(26);
 exports.select = select_1.select;
 exports.select$ = select_1.select$;
-var dispatch_1 = __webpack_require__(26);
+var dispatch_1 = __webpack_require__(27);
 exports.dispatch = dispatch_1.dispatch;
-var with_sub_store_1 = __webpack_require__(27);
+var with_sub_store_1 = __webpack_require__(28);
 exports.WithSubStore = with_sub_store_1.WithSubStore;
-var ng_redux_module_1 = __webpack_require__(28);
+var ng_redux_module_1 = __webpack_require__(29);
 exports.NgReduxModule = ng_redux_module_1.NgReduxModule;
 //# sourceMappingURL=index.js.map
 
@@ -597,7 +597,7 @@ process.umask = function() { return 0; };
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return ActionTypes; });
 /* harmony export (immutable) */ __webpack_exports__["b"] = createStore;
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_lodash_es_isPlainObject__ = __webpack_require__(11);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_symbol_observable__ = __webpack_require__(39);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_symbol_observable__ = __webpack_require__(40);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_symbol_observable___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_symbol_observable__);
 
 
@@ -853,9 +853,9 @@ var ActionTypes = {
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__baseGetTag_js__ = __webpack_require__(31);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__getPrototype_js__ = __webpack_require__(36);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__isObjectLike_js__ = __webpack_require__(38);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__baseGetTag_js__ = __webpack_require__(32);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__getPrototype_js__ = __webpack_require__(37);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__isObjectLike_js__ = __webpack_require__(39);
 
 
 
@@ -925,7 +925,7 @@ function isPlainObject(value) {
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__root_js__ = __webpack_require__(32);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__root_js__ = __webpack_require__(33);
 
 
 /** Built-in value references. */
@@ -1067,15 +1067,58 @@ exports.resolveToFunctionSelector = function (selector) {
 
 /***/ }),
 /* 18 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+exports.__esModule = true;
+var core_1 = __webpack_require__(0);
+var ShellUtils = (function () {
+    function ShellUtils() {
+    }
+    ShellUtils.prototype.getStore = function () {
+        if (window.shell && window.shell.store) {
+            return window.shell.store;
+        }
+        else {
+            // Return a mock store
+            return {
+                getState: function () { return ({ currentUser: 'dummy' }); },
+                dispatch: function (action) { return null; },
+                subscribe: function (fn) { return function (x) { return x; }; }
+            };
+        }
+    };
+    ShellUtils.prototype.sendMessage = function (appName, message) {
+        if (window.shell && window.shell.sendMessage) {
+            window.shell.sendMessage(appName, message);
+        }
+    };
+    ShellUtils = __decorate([
+        core_1.Injectable()
+    ], ShellUtils);
+    return ShellUtils;
+}());
+exports.ShellUtils = ShellUtils;
+
+
+/***/ }),
+/* 19 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic__ = __webpack_require__(19);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic__ = __webpack_require__(20);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__angular_platform_browser_dynamic__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2__ = __webpack_require__(20);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2__ = __webpack_require__(21);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_single_spa_angular2__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__main_module__ = __webpack_require__(21);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__main_module__ = __webpack_require__(22);
 //import 'zone.js';
 //import 'reflect-metadata';
 
@@ -1110,12 +1153,6 @@ function domElementGetter() {
 
 
 /***/ }),
-/* 19 */
-/***/ (function(module, exports) {
-
-module.exports = __WEBPACK_EXTERNAL_MODULE_19__;
-
-/***/ }),
 /* 20 */
 /***/ (function(module, exports) {
 
@@ -1123,19 +1160,24 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_20__;
 
 /***/ }),
 /* 21 */
+/***/ (function(module, exports) {
+
+module.exports = __WEBPACK_EXTERNAL_MODULE_21__;
+
+/***/ }),
+/* 22 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_core___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__angular_core__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__ = __webpack_require__(22);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__ = __webpack_require__(23);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__pvwa_component__ = __webpack_require__(23);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__pvwa_component__ = __webpack_require__(24);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__angular_redux_store__ = __webpack_require__(6);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__angular_redux_store___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_3__angular_redux_store__);
-//declare var window;
-//let NgModule = window.angular.core.NgModule;
-//let BrowserModule = window.angular.BrowserModule;
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_shell_utils__ = __webpack_require__(18);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_shell_utils___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_4_shell_utils__);
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -1145,6 +1187,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+
 
 
 
@@ -1168,6 +1211,7 @@ let MainModule = class MainModule {
 };
 MainModule = __decorate([
     Object(__WEBPACK_IMPORTED_MODULE_0__angular_core__["NgModule"])({
+        providers: [__WEBPACK_IMPORTED_MODULE_4_shell_utils__["ShellUtils"]],
         imports: [__WEBPACK_IMPORTED_MODULE_3__angular_redux_store__["NgReduxModule"], __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__["BrowserModule"]],
         declarations: [__WEBPACK_IMPORTED_MODULE_2__pvwa_component__["a" /* PVWAApp */]],
         bootstrap: [__WEBPACK_IMPORTED_MODULE_2__pvwa_component__["a" /* PVWAApp */]]
@@ -1178,13 +1222,13 @@ MainModule = __decorate([
 
 
 /***/ }),
-/* 22 */
+/* 23 */
 /***/ (function(module, exports) {
 
-module.exports = __WEBPACK_EXTERNAL_MODULE_22__;
+module.exports = __WEBPACK_EXTERNAL_MODULE_23__;
 
 /***/ }),
-/* 23 */
+/* 24 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -1193,6 +1237,8 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_22__;
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__angular_redux_store___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__angular_redux_store__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_core__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_core___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1__angular_core__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_shell_utils__ = __webpack_require__(18);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2_shell_utils___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_2_shell_utils__);
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -1202,16 +1248,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-//let Component = window.angular.core.Component;
+
 
 
 let PVWAApp = class PVWAApp {
-    constructor(store, cdr) {
+    constructor(shell, store, cdr) {
+        this.shell = shell;
         this.store = store;
         this.cdr = cdr;
-        this.currentUser = window.shell.store.getState().currentUser;
-        this.unsubscribe = window.shell.store.subscribe(() => {
-            this.currentUser = window.shell.store.getState().currentUser;
+        this.currentUser = shell.getStore().getState().currentUser;
+        this.unsubscribe = shell.getStore().subscribe(() => {
+            this.currentUser = shell.getStore().getState().currentUser;
             this.cdr.detectChanges();
         });
     }
@@ -1223,7 +1270,7 @@ let PVWAApp = class PVWAApp {
     }
     sendMessage() {
         const message = this.input.nativeElement.value;
-        window.shell.sendMessage('PVWA', message);
+        this.shell.sendMessage('PVWA', message);
     }
     ngOnDestroy() {
         this.unsubscribe();
@@ -1242,7 +1289,7 @@ PVWAApp = __decorate([
         selector: 'pvwa-app',
         template: `		
 				<h1>
-					PVWA Works!					
+					PVWA Works!
 				</h1>				
 
 				<div style="background: grey; width:400px; padding: 20px">
@@ -1257,19 +1304,16 @@ PVWAApp = __decorate([
 					<strong>Send message to the shell:</strong>					
 					<br>
 					<input #inputMessage (keyup)="sendMessage()" type="text">
-				</div>	
-
-				
-	
+				</div>					
 	`
     }),
-    __metadata("design:paramtypes", [__WEBPACK_IMPORTED_MODULE_0__angular_redux_store__["NgRedux"], __WEBPACK_IMPORTED_MODULE_1__angular_core__["ChangeDetectorRef"]])
+    __metadata("design:paramtypes", [__WEBPACK_IMPORTED_MODULE_2_shell_utils__["ShellUtils"], __WEBPACK_IMPORTED_MODULE_0__angular_redux_store__["NgRedux"], __WEBPACK_IMPORTED_MODULE_1__angular_core__["ChangeDetectorRef"]])
 ], PVWAApp);
 
 
 
 /***/ }),
-/* 24 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1300,7 +1344,7 @@ exports.setIn = function (obj, _a, value) {
 //# sourceMappingURL=set-in.js.map
 
 /***/ }),
-/* 25 */
+/* 26 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1361,7 +1405,7 @@ function decorate(selector, transformer, comparator) {
 //# sourceMappingURL=select.js.map
 
 /***/ }),
-/* 26 */
+/* 27 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1410,7 +1454,7 @@ exports.dispatch = dispatch;
 //# sourceMappingURL=dispatch.js.map
 
 /***/ }),
-/* 27 */
+/* 28 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1437,7 +1481,7 @@ exports.WithSubStore = WithSubStore;
 //# sourceMappingURL=with-sub-store.js.map
 
 /***/ }),
-/* 28 */
+/* 29 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1445,7 +1489,7 @@ exports.WithSubStore = WithSubStore;
 Object.defineProperty(exports, "__esModule", { value: true });
 var core_1 = __webpack_require__(0);
 var ng_redux_1 = __webpack_require__(1);
-var root_store_1 = __webpack_require__(29);
+var root_store_1 = __webpack_require__(30);
 var dev_tools_1 = __webpack_require__(7);
 /** @hidden */
 function _ngReduxFactory(ngZone) {
@@ -1472,7 +1516,7 @@ exports.NgReduxModule = NgReduxModule;
 //# sourceMappingURL=ng-redux.module.js.map
 
 /***/ }),
-/* 29 */
+/* 30 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1488,18 +1532,18 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-var redux_1 = __webpack_require__(30);
+var redux_1 = __webpack_require__(31);
 var core_1 = __webpack_require__(0);
-var Observable_1 = __webpack_require__(46);
-var BehaviorSubject_1 = __webpack_require__(47);
+var Observable_1 = __webpack_require__(47);
+var BehaviorSubject_1 = __webpack_require__(48);
 __webpack_require__(16);
-__webpack_require__(48);
-__webpack_require__(5);
 __webpack_require__(49);
+__webpack_require__(5);
+__webpack_require__(50);
 var ng_redux_1 = __webpack_require__(1);
 var selectors_1 = __webpack_require__(17);
-var assert_1 = __webpack_require__(50);
-var sub_store_1 = __webpack_require__(51);
+var assert_1 = __webpack_require__(51);
+var sub_store_1 = __webpack_require__(52);
 var fractal_reducer_map_1 = __webpack_require__(2);
 /** @hidden */
 var RootStore = (function (_super) {
@@ -1573,15 +1617,15 @@ exports.RootStore = RootStore;
 //# sourceMappingURL=root-store.js.map
 
 /***/ }),
-/* 30 */
+/* 31 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 /* WEBPACK VAR INJECTION */(function(process) {/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__createStore__ = __webpack_require__(10);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__combineReducers__ = __webpack_require__(43);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__bindActionCreators__ = __webpack_require__(44);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__applyMiddleware__ = __webpack_require__(45);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__combineReducers__ = __webpack_require__(44);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__bindActionCreators__ = __webpack_require__(45);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__applyMiddleware__ = __webpack_require__(46);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_4__compose__ = __webpack_require__(15);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_5__utils_warning__ = __webpack_require__(14);
 /* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "createStore", function() { return __WEBPACK_IMPORTED_MODULE_0__createStore__["b"]; });
@@ -1610,13 +1654,13 @@ if (process.env.NODE_ENV !== 'production' && typeof isCrushed.name === 'string' 
 /* WEBPACK VAR INJECTION */}.call(__webpack_exports__, __webpack_require__(9)))
 
 /***/ }),
-/* 31 */
+/* 32 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__Symbol_js__ = __webpack_require__(12);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__getRawTag_js__ = __webpack_require__(34);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__objectToString_js__ = __webpack_require__(35);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__getRawTag_js__ = __webpack_require__(35);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__objectToString_js__ = __webpack_require__(36);
 
 
 
@@ -1648,11 +1692,11 @@ function baseGetTag(value) {
 
 
 /***/ }),
-/* 32 */
+/* 33 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__freeGlobal_js__ = __webpack_require__(33);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__freeGlobal_js__ = __webpack_require__(34);
 
 
 /** Detect free variable `self`. */
@@ -1665,7 +1709,7 @@ var root = __WEBPACK_IMPORTED_MODULE_0__freeGlobal_js__["a" /* default */] || fr
 
 
 /***/ }),
-/* 33 */
+/* 34 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -1677,7 +1721,7 @@ var freeGlobal = typeof global == 'object' && global && global.Object === Object
 /* WEBPACK VAR INJECTION */}.call(__webpack_exports__, __webpack_require__(13)))
 
 /***/ }),
-/* 34 */
+/* 35 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -1731,7 +1775,7 @@ function getRawTag(value) {
 
 
 /***/ }),
-/* 35 */
+/* 36 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -1760,11 +1804,11 @@ function objectToString(value) {
 
 
 /***/ }),
-/* 36 */
+/* 37 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__overArg_js__ = __webpack_require__(37);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__overArg_js__ = __webpack_require__(38);
 
 
 /** Built-in value references. */
@@ -1774,7 +1818,7 @@ var getPrototype = Object(__WEBPACK_IMPORTED_MODULE_0__overArg_js__["a" /* defau
 
 
 /***/ }),
-/* 37 */
+/* 38 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -1796,7 +1840,7 @@ function overArg(func, transform) {
 
 
 /***/ }),
-/* 38 */
+/* 39 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -1832,14 +1876,14 @@ function isObjectLike(value) {
 
 
 /***/ }),
-/* 39 */
+/* 40 */
 /***/ (function(module, exports, __webpack_require__) {
 
-module.exports = __webpack_require__(40);
+module.exports = __webpack_require__(41);
 
 
 /***/ }),
-/* 40 */
+/* 41 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1849,7 +1893,7 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
-var _ponyfill = __webpack_require__(42);
+var _ponyfill = __webpack_require__(43);
 
 var _ponyfill2 = _interopRequireDefault(_ponyfill);
 
@@ -1872,10 +1916,10 @@ if (typeof self !== 'undefined') {
 
 var result = (0, _ponyfill2['default'])(root);
 exports['default'] = result;
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(13), __webpack_require__(41)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(13), __webpack_require__(42)(module)))
 
 /***/ }),
-/* 41 */
+/* 42 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -1903,7 +1947,7 @@ module.exports = function(module) {
 
 
 /***/ }),
-/* 42 */
+/* 43 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1932,7 +1976,7 @@ function symbolObservablePonyfill(root) {
 };
 
 /***/ }),
-/* 43 */
+/* 44 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -2073,7 +2117,7 @@ function combineReducers(reducers) {
 /* WEBPACK VAR INJECTION */}.call(__webpack_exports__, __webpack_require__(9)))
 
 /***/ }),
-/* 44 */
+/* 45 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -2127,7 +2171,7 @@ function bindActionCreators(actionCreators, dispatch) {
 }
 
 /***/ }),
-/* 45 */
+/* 46 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -2183,12 +2227,6 @@ function applyMiddleware() {
 }
 
 /***/ }),
-/* 46 */
-/***/ (function(module, exports) {
-
-module.exports = __WEBPACK_EXTERNAL_MODULE_46__;
-
-/***/ }),
 /* 47 */
 /***/ (function(module, exports) {
 
@@ -2208,6 +2246,12 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_49__;
 
 /***/ }),
 /* 50 */
+/***/ (function(module, exports) {
+
+module.exports = __WEBPACK_EXTERNAL_MODULE_50__;
+
+/***/ }),
+/* 51 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2222,7 +2266,7 @@ exports.assert = function (condition, message) {
 //# sourceMappingURL=assert.js.map
 
 /***/ }),
-/* 51 */
+/* 52 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";

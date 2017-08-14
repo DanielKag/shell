@@ -1,11 +1,8 @@
-//declare var window;
-//let NgModule = window.angular.core.NgModule;
-//let BrowserModule = window.angular.BrowserModule;
-
 import {NgModule} from '@angular/core';
 import {BrowserModule} from '@angular/platform-browser';
 import {PVWAApp} from './pvwa.component';
 import {NgReduxModule, NgRedux} from '@angular-redux/store';
+import { ShellUtils } from 'shell-utils';
 
 
 export interface IPVWAState { counter: number };
@@ -25,6 +22,7 @@ const initialState = {counter: 1}
 
 
 @NgModule({
+  providers: [ShellUtils],
   imports: [NgReduxModule, BrowserModule],
   declarations: [PVWAApp],
   bootstrap: [PVWAApp]
