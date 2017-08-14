@@ -19,22 +19,32 @@ const isAppActive = name => () => {
 }
 
 
+SystemJS.import('web.config.js').then(data => {
 
-const getAppsFromServer = () => 
-              fetch('https://api.myjson.com/bins/st4md')
-                .then(response => response.json())
-                .then(json => json.apps);
+  const {applications_request} = data.config;
 
-getAppsFromServer()
-  .then(apps => {
-    apps.forEach(app => {
-      declareChildApplication(app.name, 
-                              () => SystemJS.import(app.url), 
-                              isAppActive(app.name)); 
-    })    
-  });
+  if (!applications_request) {
+    throw new Error ("Invalid config file")
+  }
 
+  
+  fetch(applications_request)
+    .then(response => response.json())
+    .then(json => json.apps)  
+    .then(apps => {
+        apps.forEach(app => {
+          declareChildApplication(app.name, 
+                                  () => SystemJS.import(app.url), 
+                                  isAppActive(app.name)); 
+        })    
+      });
+
+    
 start();
+
+})
+
+
 
 
 
