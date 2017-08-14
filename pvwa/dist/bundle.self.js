@@ -17874,7 +17874,11 @@ exports.ObjectUnsubscribedError = ObjectUnsubscribedError;
 /***/ (function(module, exports) {
 
 function webpackEmptyAsyncContext(req) {
-	return new Promise(function(resolve, reject) { reject(new Error("Cannot find module '" + req + "'.")); });
+	// Here Promise.resolve().then() is used instead of new Promise() to prevent
+	// uncatched exception popping up in devtools
+	return Promise.resolve().then(function() {
+		throw new Error("Cannot find module '" + req + "'.");
+	});
 }
 webpackEmptyAsyncContext.keys = function() { return []; };
 webpackEmptyAsyncContext.resolve = webpackEmptyAsyncContext;
@@ -27102,7 +27106,11 @@ exports.isScheduler = isScheduler;
 /***/ (function(module, exports) {
 
 function webpackEmptyAsyncContext(req) {
-	return new Promise(function(resolve, reject) { reject(new Error("Cannot find module '" + req + "'.")); });
+	// Here Promise.resolve().then() is used instead of new Promise() to prevent
+	// uncatched exception popping up in devtools
+	return Promise.resolve().then(function() {
+		throw new Error("Cannot find module '" + req + "'.");
+	});
 }
 webpackEmptyAsyncContext.keys = function() { return []; };
 webpackEmptyAsyncContext.resolve = webpackEmptyAsyncContext;
@@ -60151,23 +60159,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 
 
 
-// const getShellStore = () => {
-// 	if (window.shell && window.shell.store) {
-// 		return window.shell.store;
-// 	} else {
-// 		// Return a mock store
-// 		return {
-// 			getState: () => ({currentUser: 'dummy'}),
-// 			dispatch: (action) => null,
-// 			subscribe: (fn) => x => x
-// 		};
-// 	}
-// }
-// const sendMessageToShell = (appName, message) => {
-// 	if(window.shell && window.shell.sendMessage) {
-// 		window.shell.sendMessage(appName, message);
-// 	}
-// }
 let PVWAApp = class PVWAApp {
     constructor(shell, store, cdr) {
         this.shell = shell;
@@ -60206,7 +60197,7 @@ PVWAApp = __decorate([
         selector: 'pvwa-app',
         template: `		
 				<h1>
-					PVWA Works!					
+					PVWA Works!
 				</h1>				
 
 				<div style="background: grey; width:400px; padding: 20px">
@@ -60221,10 +60212,7 @@ PVWAApp = __decorate([
 					<strong>Send message to the shell:</strong>					
 					<br>
 					<input #inputMessage (keyup)="sendMessage()" type="text">
-				</div>	
-
-				
-	
+				</div>					
 	`
     }),
     __metadata("design:paramtypes", [__WEBPACK_IMPORTED_MODULE_2_shell_utils__["ShellUtils"], __WEBPACK_IMPORTED_MODULE_0__angular_redux_store__["NgRedux"], __WEBPACK_IMPORTED_MODULE_1__angular_core__["ChangeDetectorRef"]])

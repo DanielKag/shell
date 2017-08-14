@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "main": "webpack.config.js",
-  "dependencies": {    
+  "dependencies": {
+    "moment": "^2.18.1"
   },
   "devDependencies": {
     "ts-loader": "^2.3.2",

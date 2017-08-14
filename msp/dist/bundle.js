@@ -80,11 +80,7 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2__ = __webpack_require__(3);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_single_spa_angular2__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__main_module__ = __webpack_require__(4);
-//import 'zone.js';
-//import 'reflect-metadata';
 
-//let platformBrowserDynamic = window.angular.platformBrowserDynamic;
-//let singleSpaAngular2 = window.singleSpaAngular2;
 
 
 const ng2Lifecycles = __WEBPACK_IMPORTED_MODULE_1_single_spa_angular2___default()({
@@ -135,9 +131,6 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_3__;
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__ = __webpack_require__(5);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__angular_platform_browser___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1__angular_platform_browser__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__msp_component__ = __webpack_require__(6);
-//declare var window;
-//let NgModule = window.angular.core.NgModule;
-//let BrowserModule = window.angular.BrowserModule;
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
